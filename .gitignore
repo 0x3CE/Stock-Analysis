@@ -1,0 +1,111 @@
+# =========================================
+# 🚀 FRONTEND : React App (stock-dashboard)
+# =========================================
+
+# node modules
+stock-dashboard/node_modules/
+
+# build output
+stock-dashboard/build/
+stock-dashboard/.parcel-cache/
+
+# env files
+stock-dashboard/.env
+stock-dashboard/.env.local
+stock-dashboard/.env.development.local
+stock-dashboard/.env.test.local
+stock-dashboard/.env.production.local
+
+# logs
+stock-dashboard/npm-debug.log*
+stock-dashboard/yarn-debug.log*
+stock-dashboard/yarn-error.log*
+stock-dashboard/pnpm-debug.log*
+stock-dashboard/package-lock.json
+
+# misc
+stock-dashboard/.DS_Store
+stock-dashboard/.vscode/
+stock-dashboard/.idea/
+stock-dashboard/dist/
+
+# =========================================
+# 🐍 BACKEND : Python (FastAPI, Flask, Django…)
+# =========================================
+
+backend/__pycache__/
+backend/*.py[cod]
+backend/*$py.class
+backend/*.log
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.coverage
+backend/htmlcov/
+backend/.env
+backend/instance/
+backend/*.db
+backend/*.sqlite3
+
+# virtual environment
+venv/
+.venv/
+env/
+.env/
+venv.bak/
+env.bak/
+
+# builds / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# =========================================
+# ⚙️ GLOBAL / COMMON
+# =========================================
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# cache / temp
+.cache/
+.tmp/
+temp/
+*.tmp
+
+# editor / IDE
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+.history/
+
+# =========================================
+# 📦 PYTHON ENVIRONMENT / DEPENDENCY MANAGEMENT
+# =========================================
+
+# Pipenv / Poetry / Pyenv
+Pipfile.lock
+poetry.lock
+.python-version
+
+# =========================================
+# 🧪 TESTS & COVERAGE
+# =========================================
+
+.tox/
+.nox/
+*.cover
+*.lcov
+coverage.xml
+
+# =========================================
+# 🔒 SECRETS & ENV
+# =========================================
+
+*.env
+secrets.json
