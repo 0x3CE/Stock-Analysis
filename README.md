@@ -13,7 +13,7 @@ project/
 │   ├── requirements.txt     # Dépendances Python
 │   └── .env                 # Variables d'environnement (optionnel)
 │
-└── frontend/
+└── stock-dashboard/
     ├── src/
     │   └── App.jsx          # Dashboard React
     ├── package.json
