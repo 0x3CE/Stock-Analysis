@@ -11,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
+from yfinance import Search as YFSearch
 
 # === Configuration de l'application ===
 app = FastAPI(
@@ -33,7 +34,6 @@ app.add_middleware(
 
 # === Modèles de données (Pydantic pour validation) ===
 class StockKPIs(BaseModel):
-    """Modèle représentant les KPIs principaux d'une action."""
     current_price: float
     price_change: float
     market_cap: float
@@ -51,14 +51,12 @@ class StockKPIs(BaseModel):
 
 
 class PiotroskiCriterion(BaseModel):
-    """Modèle représentant un critère individuel du Piotroski F-Score."""
     criterion: str
     score: int
     detail: str
 
 
 class PiotroskiScore(BaseModel):
-    """Modèle du Piotroski F-Score complet avec détails par catégorie."""
     total_score: int
     profitability: List[PiotroskiCriterion]
     leverage: List[PiotroskiCriterion]
@@ -67,14 +65,12 @@ class PiotroskiScore(BaseModel):
 
 
 class HistoricalData(BaseModel):
-    """Point de données historiques (prix + volume)."""
     date: str
     price: float
     volume: int
 
 
 class StockAnalysis(BaseModel):
-    """Réponse complète de l'analyse d'une action."""
     ticker: str
     name: str
     kpis: StockKPIs
@@ -84,175 +80,193 @@ class StockAnalysis(BaseModel):
 
 # === Service métier : Récupération des données yfinance ===
 class StockDataService:
-    """Service responsable de la récupération et transformation des données."""
-    
     @staticmethod
     def fetch_stock_info(ticker: str) -> yf.Ticker:
-        """Récupère l'objet Ticker yfinance avec gestion d'erreur."""
+        """
+        Récupère l'objet Ticker yfinance et vérifie la présence de données.
+        Si pas de données via info, tente fast_info puis history.
+        """
         try:
             stock = yf.Ticker(ticker)
-            # Vérification que le ticker existe en testant l'accès aux infos
-            if not stock.info or 'regularMarketPrice' not in stock.info:
-                raise ValueError(f"Ticker {ticker} invalide ou données indisponibles")
-            return stock
         except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Erreur ticker {ticker}: {str(e)}")
-    
+            raise HTTPException(status_code=404, detail=f"Erreur initialisation ticker {ticker}: {str(e)}")
+
+        # Try to read info / fast_info safely
+        info = {}
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+
+        fast = {}
+        try:
+            fast = getattr(stock, "fast_info", {}) or {}
+        except Exception:
+            fast = {}
+
+        # try common price fields
+        price = info.get("currentPrice") or info.get("regularMarketPrice") or fast.get("last_price") or fast.get("lastPrice")
+        if price is None:
+            # fallback: try small history to detect whether ticker yields data
+            try:
+                hist = stock.history(period="5d")
+                if hist.empty:
+                    raise HTTPException(status_code=404, detail=f"Ticker {ticker} invalide ou données indisponibles")
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} invalide ou données indisponibles")
+        return stock
+
     @staticmethod
     def get_historical_prices(stock: yf.Ticker, period: str = "1y") -> List[Dict]:
-        """Récupère l'historique des prix sur une période donnée."""
         hist = stock.history(period=period)
-        
+
         if hist.empty:
             return []
-        
-        # Transformation en format exploitable par le frontend
+
         historical = []
         for date, row in hist.iterrows():
             historical.append({
                 "date": date.strftime("%Y-%m-%d"),
-                "price": round(float(row['Close']), 2),
-                "volume": int(row['Volume'])
+                "price": round(float(row.get('Close', row.get('close', 0))), 2),
+                "volume": int(row.get('Volume', row.get('volume', 0)) or 0)
             })
-        
+
         return historical
-    
+
     @staticmethod
     def extract_kpis(stock: yf.Ticker) -> Dict:
-        """Extrait les KPIs depuis l'objet yfinance avec valeurs par défaut."""
-        info = stock.info
-        
-        current_price = info.get('currentPrice') or info.get('regularMarketPrice', 0)
-        previous_close = info.get('previousClose', current_price)
-        price_change = ((current_price - previous_close) / previous_close * 100) if previous_close else 0
-        
+        # read info / fast_info robustly
+        info = {}
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+
+        fast = {}
+        try:
+            fast = getattr(stock, "fast_info", {}) or {}
+        except Exception:
+            fast = {}
+
+        # Price fallback
+        current_price = info.get('currentPrice') or info.get('regularMarketPrice') or fast.get('last_price') or 0
+        previous_close = info.get('previousClose') or current_price
+        try:
+            price_change = ((current_price - previous_close) / previous_close * 100) if previous_close else 0
+        except Exception:
+            price_change = 0
+
+        market_cap = info.get('marketCap') or 0
+        dividend_yield = info.get('dividendYield')
+        trailing_pe = info.get('trailingPE')
+        volume = info.get('volume') or 0
+
         return {
-            "current_price": round(current_price, 2),
-            "price_change": round(price_change, 2),
-            "market_cap": round(info.get('marketCap', 0) / 1e9, 2),
-            "pe_ratio": round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else None,
-            "dividend_yield": round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else None,
-            "volume": round(info.get('volume', 0) / 1e6, 2),
-            "high_52w": round(info.get('fiftyTwoWeekHigh', 0), 2) if info.get('fiftyTwoWeekHigh') else None,
-            "low_52w": round(info.get('fiftyTwoWeekLow', 0), 2) if info.get('fiftyTwoWeekLow') else None,
-            "beta": round(info.get('beta', 0), 2) if info.get('beta') else None,
-            "eps": round(info.get('trailingEps', 0), 2) if info.get('trailingEps') else None,
-            "roe": round(info.get('returnOnEquity', 0) * 100, 2) if info.get('returnOnEquity') else None,
-            "debt_to_equity": round(info.get('debtToEquity', 0), 2) if info.get('debtToEquity') else None,
-            "current_ratio": round(info.get('currentRatio', 0), 2) if info.get('currentRatio') else None,
-            "profit_margin": round(info.get('profitMargins', 0) * 100, 2) if info.get('profitMargins') else None,
+            "current_price": round(float(current_price or 0), 2),
+            "price_change": round(float(price_change or 0), 2),
+            "market_cap": round(float(market_cap or 0) / 1e9, 2),
+            "pe_ratio": round(float(trailing_pe), 2) if trailing_pe else None,
+            "dividend_yield": round(float(dividend_yield * 100), 2) if dividend_yield else None,
+            "volume": round(float(volume or 0) / 1e6, 2),
+            "high_52w": round(float(info.get('fiftyTwoWeekHigh')), 2) if info.get('fiftyTwoWeekHigh') else None,
+            "low_52w": round(float(info.get('fiftyTwoWeekLow')), 2) if info.get('fiftyTwoWeekLow') else None,
+            "beta": round(float(info.get('beta')), 2) if info.get('beta') else None,
+            "eps": round(float(info.get('trailingEps')), 2) if info.get('trailingEps') else None,
+            "roe": round(float(info.get('returnOnEquity') * 100), 2) if info.get('returnOnEquity') else None,
+            "debt_to_equity": round(float(info.get('debtToEquity')), 2) if info.get('debtToEquity') else None,
+            "current_ratio": round(float(info.get('currentRatio')), 2) if info.get('currentRatio') else None,
+            "profit_margin": round(float(info.get('profitMargins') * 100), 2) if info.get('profitMargins') else None,
         }
 
 
 # === Service métier : Calcul du Piotroski F-Score ===
 class PiotroskiService:
-    """Service dédié au calcul du Piotroski F-Score selon les 9 critères standards."""
-    
     @staticmethod
     def calculate_score(stock: yf.Ticker) -> Dict:
-        """
-        Calcule le Piotroski F-Score (0-9) en évaluant 9 critères financiers.
-        Retourne le score total + détails par catégorie.
-        """
-        info = stock.info
-        financials = stock.financials
-        balance_sheet = stock.balance_sheet
-        cashflow = stock.cashflow
-        
-        # Initialisation des catégories de critères
+        info = {}
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+
+        # Basic placeholders (keeps your existing logic with safe .get usage)
         profitability = []
         leverage = []
         operating = []
-        
-        # === RENTABILITÉ (4 critères) ===
-        
-        # 1. ROA positif (Net Income / Total Assets > 0)
-        roa = info.get('returnOnAssets', 0)
+
+        roa = info.get('returnOnAssets') or 0
         profitability.append({
             "criterion": "ROA Positif",
-            "score": 1 if roa > 0 else 0,
-            "detail": f"ROA: {round(roa * 100, 2)}%"
+            "score": 1 if roa and roa > 0 else 0,
+            "detail": f"ROA: {round((roa or 0) * 100, 2)}%"
         })
-        
-        # 2. Cash Flow opérationnel positif
-        ocf = info.get('operatingCashflow', 0)
+
+        ocf = info.get('operatingCashflow') or 0
         profitability.append({
             "criterion": "Cash Flow Opérationnel > 0",
-            "score": 1 if ocf > 0 else 0,
-            "detail": f"OCF: {round(ocf / 1e9, 2)}B"
+            "score": 1 if ocf and ocf > 0 else 0,
+            "detail": f"OCF: {round((ocf or 0) / 1e9, 2)}B"
         })
-        
-        # 3. ROA en croissance (comparaison année N vs N-1)
-        # Note: nécessite données historiques complètes
+
         profitability.append({
             "criterion": "ROA en croissance",
-            "score": 1 if roa > 0.05 else 0,  # Approximation basée sur ROA actuel
+            "score": 1 if roa and roa > 0.05 else 0,
             "detail": "Estimation basée sur ROA actuel"
         })
-        
-        # 4. Qualité des bénéfices (OCF > Net Income)
-        net_income = info.get('netIncomeToCommon', 0)
+
+        net_income = info.get('netIncomeToCommon') or 0
+        quality_score = 1 if ocf > net_income else 0
+        detail_ni = f"OCF/NI: {round(ocf / net_income, 2) if net_income else 'N/A'}"
         profitability.append({
             "criterion": "Qualité des bénéfices (OCF > NI)",
-            "score": 1 if ocf > net_income else 0,
-            "detail": f"OCF/NI: {round(ocf / net_income, 2) if net_income else 'N/A'}"
+            "score": quality_score,
+            "detail": detail_ni
         })
-        
-        # === LEVIER / LIQUIDITÉ / SOURCES DE FINANCEMENT (3 critères) ===
-        
-        # 5. Dette à long terme en baisse
-        debt_to_equity = info.get('debtToEquity', 100)
+
+        debt_to_equity = info.get('debtToEquity') or 0
         leverage.append({
             "criterion": "Dette/Equity < 100",
             "score": 1 if debt_to_equity < 100 else 0,
             "detail": f"D/E: {round(debt_to_equity, 2)}"
         })
-        
-        # 6. Current Ratio en hausse (Actifs courants / Passifs courants)
-        current_ratio = info.get('currentRatio', 0)
+
+        current_ratio = info.get('currentRatio') or 0
         leverage.append({
             "criterion": "Current Ratio > 1.5",
             "score": 1 if current_ratio > 1.5 else 0,
             "detail": f"Ratio: {round(current_ratio, 2)}"
         })
-        
-        # 7. Pas d'émission de nouvelles actions (dilution)
-        # Note: nécessite comparaison historique du nombre d'actions
+
         leverage.append({
             "criterion": "Pas de nouvelle émission d'actions",
-            "score": 1,  # Par défaut à 1 (données historiques limitées)
+            "score": 1,
             "detail": "Estimation (données limitées)"
         })
-        
-        # === EFFICACITÉ OPÉRATIONNELLE (2 critères) ===
-        
-        # 8. Marge brute en hausse
-        profit_margin = info.get('profitMargins', 0)
+
+        profit_margin = info.get('profitMargins') or 0
         operating.append({
             "criterion": "Marge brute > 15%",
             "score": 1 if profit_margin > 0.15 else 0,
-            "detail": f"Marge: {round(profit_margin * 100, 2)}%"
+            "detail": f"Marge: {round((profit_margin or 0) * 100, 2)}%"
         })
-        
-        # 9. Rotation des actifs en hausse (Ventes / Total Assets)
-        # Note: nécessite comparaison historique
+
         operating.append({
             "criterion": "Rotation des actifs en hausse",
-            "score": 1 if profit_margin > 0.10 else 0,  # Approximation
+            "score": 1 if profit_margin > 0.10 else 0,
             "detail": "Estimation basée sur marge"
         })
-        
-        # Calcul du score total
+
         total = sum([c["score"] for c in profitability + leverage + operating])
-        
-        # Interprétation du score selon la méthodologie Piotroski
+
         if total >= 7:
             interpretation = "EXCELLENT - Fondamentaux solides, entreprise de qualité"
         elif total >= 4:
             interpretation = "MOYEN - Signaux mitigés, analyse approfondie recommandée"
         else:
             interpretation = "FAIBLE - Fondamentaux fragiles, prudence fortement recommandée"
-        
+
         return {
             "total_score": total,
             "profitability": profitability,
@@ -266,51 +280,89 @@ class PiotroskiService:
 
 @app.get("/")
 async def root():
-    """Endpoint racine pour vérifier que l'API fonctionne."""
     return {
         "message": "Stock Analysis API",
         "version": "1.0.0",
         "endpoints": {
             "/analyze/{ticker}": "Analyse complète d'une action",
-            "/health": "Statut de l'API"
+            "/health": "Statut de l'API",
+            "/search/{query}": "Recherche d'actions par nom ou ticker"
         }
     }
 
 
 @app.get("/health")
 async def health_check():
-    """Endpoint de santé pour monitoring."""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 
-@app.get("/analyze/{ticker}", response_model=StockAnalysis)
-async def analyze_stock(ticker: str):
+@app.get("/search/{query}")
+async def search_stocks(query: str):
+    try:
+        query = query.strip()
+        if not query:
+            return {"results": []}
+
+        # Utilisation de yfinance.Search
+        search_obj = YFSearch(query, max_results=8)
+        res = search_obj.search()
+
+        quotes = res.quotes or []
+        results = []
+        for q in quotes[:5]:
+            sym = q.get("symbol")
+            name = q.get("shortname") or q.get("longname") or ""
+            if sym:
+                results.append({"symbol": sym, "name": name})
+
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur recherche : {str(e)}")
+
+
+
+@app.get("/analyze/{input_str}", response_model=StockAnalysis)
+async def analyze_stock(input_str: str):
     """
-    Endpoint principal : analyse complète d'une action.
-    
-    Args:
-        ticker: Symbole de l'action (ex: AAPL, MSFT, TSLA)
-    
-    Returns:
-        StockAnalysis: Objet contenant KPIs, historique et Piotroski F-Score
-    
-    Raises:
-        HTTPException: Si le ticker est invalide ou données indisponibles
+    Analyse complète d'une action.
+    Essaie d'abord d'interpréter l'entrée comme un ticker; si échec -> recherche par nom.
     """
-    ticker = ticker.upper()
-    
-    # Récupération des données via le service
-    stock = StockDataService.fetch_stock_info(ticker)
-    
-    # Extraction des différentes composantes
+    raw = input_str.strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Ticker/nom vide")
+
+    symbol = raw.upper()
+
+    # 1) Try to fetch assuming symbol
+    stock = None
+    try:
+        stock = StockDataService.fetch_stock_info(symbol)
+    except HTTPException:
+        # 2) Fallback: search by name (case insensitive)
+        try:
+            results = yf.search(raw)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erreur recherche: {str(e)}")
+        if not results:
+            raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{raw}'")
+        symbol = results[0].get("symbol")
+        if not symbol:
+            raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{raw}'")
+        stock = StockDataService.fetch_stock_info(symbol)
+
+    # Extraction
     kpis = StockDataService.extract_kpis(stock)
     historical = StockDataService.get_historical_prices(stock, period="1y")
     piotroski = PiotroskiService.calculate_score(stock)
-    
-    # Construction de la réponse complète
+    name = ""
+    try:
+        name = stock.info.get("longName") or stock.info.get("shortName") or symbol
+    except Exception:
+        name = symbol
+
     return {
-        "ticker": ticker,
-        "name": stock.info.get('longName', ticker),
+        "ticker": symbol,
+        "name": name,
         "kpis": kpis,
         "historical_data": historical,
         "piotroski_score": piotroski
@@ -320,12 +372,9 @@ async def analyze_stock(ticker: str):
 # === Point d'entrée de l'application ===
 if __name__ == "__main__":
     import uvicorn
-    
-    # Lancement du serveur en mode développement
-    # En production: utiliser gunicorn ou équivalent
     uvicorn.run(
-        "main:app",  # Remplacer "main" par le nom de votre fichier
+        "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True  # Hot reload en dev
+        reload=True
     )

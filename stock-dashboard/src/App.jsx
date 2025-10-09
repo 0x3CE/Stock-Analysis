@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, Award } from 'lucide-react';
 
@@ -10,23 +10,56 @@ const StockDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const debounceRef = useRef(null);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
-  // Fonction de récupération des données depuis l'API Python
+  // Récupération des suggestions
+  const fetchSuggestions = async (query) => {
+    if (!query || query.trim().length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    setSuggestionsLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE_URL}/search/${encodeURIComponent(query)}`);
+      if (!resp.ok) {
+        // si 404 -> pas de suggestions
+        if (resp.status === 404) {
+          setSuggestions([]);
+          setSuggestionsLoading(false);
+          return;
+        }
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.detail || 'Erreur recherche');
+      }
+      const data = await resp.json();
+      setSuggestions(data.results || []);
+    } catch (err) {
+      console.error("Erreur de recherche :", err);
+      setSuggestions([]);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  // Récupération de l'analyse
   const fetchAnalysis = async (symbol) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze/${symbol}`);
-      
+      const response = await fetch(`${API_BASE_URL}/analyze/${encodeURIComponent(symbol)}`);
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Erreur lors de la récupération des données');
       }
-      
+
       const data = await response.json();
       setAnalysis(data);
-      
+      // nettoyer suggestions après chargement
+      setSuggestions([]);
     } catch (err) {
       setError(err.message);
       setAnalysis(null);
@@ -35,40 +68,39 @@ const StockDashboard = () => {
     }
   };
 
-  // Chargement initial au montage du composant
+  // Chargement initial
   useEffect(() => {
     fetchAnalysis(ticker);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handler pour le bouton d'analyse
   const handleAnalyze = () => {
     if (ticker.trim()) {
-      fetchAnalysis(ticker.trim().toUpperCase());
+      fetchAnalysis(ticker.trim());
     }
   };
 
-  // Handler pour la touche Entrée dans l'input
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleAnalyze();
     }
   };
 
-  // Utilitaire pour déterminer la couleur selon le score et test de push
   const getScoreColor = (score) => {
     if (score >= 7) return 'text-green-400';
     if (score >= 4) return 'text-yellow-400';
     return 'text-red-400';
   };
 
-  // Utilitaire pour le label du score
   const getScoreLabel = (score) => {
     if (score >= 7) return 'EXCELLENT';
     if (score >= 4) return 'MOYEN';
     return 'FAIBLE';
   };
 
-  // Affichage pendant le chargement
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800">
@@ -80,7 +112,6 @@ const StockDashboard = () => {
     );
   }
 
-  // Affichage en cas d'erreur
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800">
@@ -98,7 +129,6 @@ const StockDashboard = () => {
     );
   }
 
-  // Affichage si aucune donnée n'est chargée
   if (!analysis) return null;
 
   const { kpis, historical_data, piotroski_score, name } = analysis;
@@ -107,18 +137,50 @@ const StockDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
-        
+
         {/* Barre de recherche */}
-        <div className="mb-8">
+        <div className="mb-8 relative">
           <div className="flex gap-4 items-center">
-            <input
-              type="text"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              onKeyPress={handleKeyPress}
-              placeholder="Ticker (ex: AAPL)"
-              className="px-4 py-2 bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
-            />
+            <div className="relative w-full">
+              <input
+                type="text"
+                value={ticker}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTicker(value);
+                  if (debounceRef.current) clearTimeout(debounceRef.current);
+                  debounceRef.current = setTimeout(() => fetchSuggestions(value), 350);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Nom ou Ticker (ex: Apple ou AAPL)"
+                className="px-4 py-2 w-full bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
+              />
+
+              {/* Suggestions */}
+              { (suggestions.length > 0 || suggestionsLoading) && (
+                <div className="absolute z-50 bg-slate-800 border border-slate-700 rounded-lg mt-1 w-full max-h-56 overflow-y-auto shadow-lg">
+                  {suggestionsLoading && (
+                    <div className="px-4 py-2 text-slate-300">Chargement...</div>
+                  )}
+                  {suggestions.map((s, idx) => (
+                    <div
+                      key={idx}
+                      onMouseDown={(ev) => { // onMouseDown pour éviter blur avant click
+                        ev.preventDefault();
+                        setTicker(s.symbol);
+                        setSuggestions([]);
+                        fetchAnalysis(s.symbol);
+                      }}
+                      className="px-4 py-2 cursor-pointer hover:bg-slate-700 text-white transition-colors"
+                    >
+                      <span className="font-semibold text-blue-400">{s.symbol}</span>
+                      <span className="text-slate-300"> — {s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleAnalyze}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
@@ -200,35 +262,35 @@ const StockDashboard = () => {
             <h2 className="text-xl font-bold text-white mb-4">Métriques Financières</h2>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="text-slate-400">52W High</span>
-                <span className="text-white font-semibold">${kpis.high_52w || 'N/A'}</span>
+                <span className="text-slate-400">52W High : </span>
+                <span className="text-white font-semibold">&nbsp;${kpis.high_52w || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">52W Low</span>
-                <span className="text-white font-semibold">${kpis.low_52w || 'N/A'}</span>
+                <span className="text-slate-400">52W Low : </span>
+                <span className="text-white font-semibold">&nbsp;${kpis.low_52w || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Beta</span>
-                <span className="text-white font-semibold">{kpis.beta || 'N/A'}</span>
+                <span className="text-slate-400">Beta : </span>
+                <span className="text-white font-semibold">&nbsp;{kpis.beta || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">EPS</span>
-                <span className="text-white font-semibold">${kpis.eps || 'N/A'}</span>
+                <span className="text-slate-400">EPS : </span>
+                <span className="text-white font-semibold">&nbsp;${kpis.eps || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">ROE</span>
-                <span className="text-white font-semibold">{kpis.roe ? `${kpis.roe}%` : 'N/A'}</span>
+                <span className="text-slate-400">ROE : </span>
+                <span className="text-white font-semibold">&nbsp;{kpis.roe ? `${kpis.roe}%` : 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Debt/Equity</span>
-                <span className="text-white font-semibold">{kpis.debt_to_equity || 'N/A'}</span>
+                <span className="text-slate-400">Debt/Equity : </span>
+                <span className="text-white font-semibold">&nbsp;{kpis.debt_to_equity || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Current Ratio</span>
-                <span className="text-white font-semibold">{kpis.current_ratio || 'N/A'}</span>
+                <span className="text-slate-400">Current Ratio : </span>
+                <span className="text-white font-semibold">&nbsp;{kpis.current_ratio || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Profit Margin</span>
+                <span className="text-slate-400">Profit Margin : </span>
                 <span className="text-white font-semibold">{kpis.profit_margin ? `${kpis.profit_margin}%` : 'N/A'}</span>
               </div>
             </div>
@@ -245,11 +307,8 @@ const StockDashboard = () => {
               <h2 className="text-2xl font-bold text-white">Analyse Piotroski F-Score</h2>
             </div>
             <div className="text-right">
-              <div className={`text-6xl font-bold ${getScoreColor(piotroski_score.total_score)}`}>
-                {piotroski_score.total_score}/9
-              </div>
-              <div className={`text-xl font-semibold ${getScoreColor(piotroski_score.total_score)}`}>
-                {getScoreLabel(piotroski_score.total_score)}
+              <div className={`text-8xl font-bold ${getScoreColor(piotroski_score.total_score)}`}>
+                &nbsp; {piotroski_score.total_score}/9 {getScoreLabel(piotroski_score.total_score)}
               </div>
             </div>
           </div>
@@ -266,7 +325,7 @@ const StockDashboard = () => {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-slate-300 text-sm">{item.criterion}</span>
                       <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        {item.score}
+                        &nbsp; : {item.score}
                       </span>
                     </div>
                     <div className="text-xs text-slate-500">{item.detail}</div>
@@ -284,7 +343,7 @@ const StockDashboard = () => {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-slate-300 text-sm">{item.criterion}</span>
                       <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        {item.score}
+                        &nbsp; : {item.score}
                       </span>
                     </div>
                     <div className="text-xs text-slate-500">{item.detail}</div>
@@ -302,7 +361,7 @@ const StockDashboard = () => {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-slate-300 text-sm">{item.criterion}</span>
                       <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        {item.score}
+                        &nbsp; : {item.score}
                       </span>
                     </div>
                     <div className="text-xs text-slate-500">{item.detail}</div>
