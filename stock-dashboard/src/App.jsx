@@ -138,9 +138,8 @@ const StockDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
 
-        {/* Barre de recherche */}
-        <div className="mb-8 relative">
-          <div className="flex gap-4 items-center">
+        <div className="search-container mb-8 relative">
+          <div className="flex gap-4">
             <div className="relative w-full">
               <input
                 type="text"
@@ -155,7 +154,6 @@ const StockDashboard = () => {
                 placeholder="Nom ou Ticker (ex: Apple ou AAPL)"
                 className="px-4 py-2 w-full bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
               />
-
               {/* Suggestions */}
               { (suggestions.length > 0 || suggestionsLoading) && (
                 <div className="absolute z-50 bg-slate-800 border border-slate-700 rounded-lg mt-1 w-full max-h-56 overflow-y-auto shadow-lg">
@@ -165,7 +163,7 @@ const StockDashboard = () => {
                   {suggestions.map((s, idx) => (
                     <div
                       key={idx}
-                      onMouseDown={(ev) => { // onMouseDown pour éviter blur avant click
+                      onMouseDown={(ev) => {
                         ev.preventDefault();
                         setTicker(s.symbol);
                         setSuggestions([]);
@@ -180,7 +178,6 @@ const StockDashboard = () => {
                 </div>
               )}
             </div>
-
             <button
               onClick={handleAnalyze}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
@@ -189,7 +186,6 @@ const StockDashboard = () => {
             </button>
           </div>
         </div>
-
         {/* En-tête avec nom et prix */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">{name}</h1>

@@ -157,7 +157,6 @@ Analyse sur **9 critères** répartis en 3 catégories :
 
 ### Visualisations
 - Graphique d'évolution du prix sur 30 jours
-- KPI cards avec icônes colorées
 - Score Piotroski avec code couleur (vert ≥7, jaune 4-6, rouge <4)
 
 ---
@@ -178,15 +177,26 @@ Analyse sur **9 critères** répartis en 3 catégories :
 
 ---
 
-## 📝 Exemples de Tickers
+## 📝 Comment faire une recherche d'action ? 
 
-- **AAPL** : Apple Inc.
-- **MSFT** : Microsoft
-- **GOOGL** : Alphabet (Google)
-- **TSLA** : Tesla
-- **AMZN** : Amazon
-- **NVDA** : NVIDIA
-- **META** : Meta (Facebook)
+Il vous ai possible de faire une recherche full text ou alors avec le ticker
+
+*exemple*
+-Apple
+-APPL
+
+
+---
+
+## 🏗️ Développement à suivre
+
+- Intégration du rendement du dividende
+- Évolution du dividende
+- intégration de news relatif à l'action
+- Indiquer le code ISIN
+- Indiquer les tendances et "conseils" d'achat/vente/conservation/renforcement
+- Intégrer des prévisions de cours selon un timeseries
+- Intégrer la saisonnalité sur les 5 dernières années.
 
 ---
 
@@ -209,8 +219,7 @@ npm run build
 ## 🐛 Troubleshooting
 
 ### Erreur "Ticker invalide"
-- Vérifier que le symbole existe sur Yahoo Finance
-- Essayer avec un ticker connu (AAPL, MSFT)
+- Vérifier que l'action est bien disponible sur Yahoo finance.
 
 ### Erreur CORS
 - Vérifier la configuration du middleware CORS dans `main.py`
