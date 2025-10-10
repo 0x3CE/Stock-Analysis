@@ -190,8 +190,6 @@ Il vous ai possible de faire une recherche full text ou alors avec le ticker
 
 ## 🏗️ Développement à suivre
 
-- Intégration du rendement du dividende
-- Évolution du dividende
 - intégration de news relatif à l'action
 - Indiquer le code ISIN
 - Indiquer les tendances et "conseils" d'achat/vente/conservation/renforcement

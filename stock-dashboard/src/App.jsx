@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, Award } from 'lucide-react';
+import { LineChart,Line,BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
 
 // Configuration de l'URL de l'API backend
 const API_BASE_URL = 'http://localhost:8000';
@@ -13,6 +14,8 @@ const StockDashboard = () => {
   const [suggestions, setSuggestions] = useState([]);
   const debounceRef = useRef(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [news, setNews] = useState([]);
+
 
   // Récupération des suggestions
   const fetchSuggestions = async (query) => {
@@ -43,14 +46,12 @@ const StockDashboard = () => {
     }
   };
 
-  // Récupération de l'analyse
   const fetchAnalysis = async (symbol) => {
     setLoading(true);
     setError(null);
 
     try {
       const response = await fetch(`${API_BASE_URL}/analyze/${encodeURIComponent(symbol)}`);
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Erreur lors de la récupération des données');
@@ -58,8 +59,9 @@ const StockDashboard = () => {
 
       const data = await response.json();
       setAnalysis(data);
-      // nettoyer suggestions après chargement
       setSuggestions([]);
+      await fetchNews(symbol); // ← AJOUTE CETTE LIGNE
+
     } catch (err) {
       setError(err.message);
       setAnalysis(null);
@@ -68,9 +70,25 @@ const StockDashboard = () => {
     }
   };
 
+  const fetchNews = async (symbol) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/news/${encodeURIComponent(symbol)}`);
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des actualités");
+      }
+      const data = await response.json();
+      setNews(data);
+    } catch (err) {
+      console.error("Erreur récupération news :", err);
+      setNews([]); // on vide la liste en cas d’erreur
+    }
+  };
+
+
   // Chargement initial
   useEffect(() => {
     fetchAnalysis(ticker);
+    fetchNews(ticker);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
@@ -133,6 +151,7 @@ const StockDashboard = () => {
 
   const { kpis, historical_data, piotroski_score, name } = analysis;
   const lastMonthData = historical_data.slice(-30);
+  console.log("Données des dividendes dans le composant :", analysis?.dividend_history);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
@@ -208,6 +227,7 @@ const StockDashboard = () => {
             <div className="text-2xl font-bold text-white">${kpis.market_cap}B</div>
           </div>
 
+
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
             <div className="flex items-center justify-between mb-2">
               <span className="text-slate-400">P/E Ratio</span>
@@ -243,17 +263,129 @@ const StockDashboard = () => {
               <LineChart data={lastMonthData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="date" stroke="#9CA3AF" tick={{fontSize: 12}} />
-                <YAxis stroke="#9CA3AF" domain={['dataMin - 5', 'dataMax + 5']} />
+                <YAxis 
+                  stroke="#9CA3AF" 
+                  tick={{ fontSize: 14 }} 
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`} />
                 <Tooltip 
                   contentStyle={{backgroundColor: '#1e293b', border: '1px solid #475569'}}
                   labelStyle={{color: '#fff'}}
+                  formatter={(value) => [`$${value}`, "Price"]}
                 />
                 <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h2 className="text-xl font-bold text-white mb-4">Évolution des Dividendes (5 ans)</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart
+                data={[...analysis.dividend_history].sort((a, b) => a.year.localeCompare(b.year))}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis
+                  dataKey="year"
+                  stroke="#9CA3AF"
+                  tick={{ fontSize: 12 }} 
+                />
+                <YAxis
+                  stroke="#9CA3AF"
+                  tick={{ fontSize: 14 }}
+                  domain={[
+                    (dataMin) => Math.max(0, dataMin - 0.05),  // Début légèrement en dessous de la valeur minimale
+                    (dataMax) => dataMax + 0.05               // Fin légèrement au-dessus de la valeur maximale
+                  ]}
+                  tickFormatter={(value) => `$${value.toFixed(2)}`}  // Affiche 2 décimales
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  labelStyle={{ color: '#fff' }}
+                  formatter={(value) => [`$${value}`, "Dividende"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#10b981"
+                  strokeWidth={1.5}
+                  dot={{
+                    r: 3,  // Réduit le rayon des points (3px au lieu de 4px ou 6px)
+                    fill: "#fff",  // Centre des points en blanc pour plus de visibilité
+                    stroke: "#10b981",  // Bordure des points en vert
+                    strokeWidth: 1.5  // Épaisseur de la bordure des points
+                  }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-          {/* Métriques financières détaillées */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h2 className="text-xl font-bold text-white mb-4">Évolution du Bénéfice Net (5 ans)</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart
+                data={[...analysis.profit_margin_history].sort((a, b) => a.year.localeCompare(b.year))}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="year" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+                <YAxis
+                  stroke="#9CA3AF"
+                  tick={{ fontSize: 14 }}
+                  tickFormatter={(v) => `$${v}B`}
+                  domain={['dataMin - 2', 'dataMax + 2']}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  labelStyle={{ color: '#fff' }}
+                  formatter={(value) => [`$${value}B`, "Bénéfice net"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="net_income"
+                  stroke="#f97316"
+                  strokeWidth={1.5}
+                  dot={{ r: 3, fill: "#fff", stroke: "#f97316", strokeWidth: 1.5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h2 className="text-xl font-bold text-white mb-4">Marge Nette (5 ans)</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart
+              data={[...analysis.profit_margin_history].sort((a, b) => a.year.localeCompare(b.year))}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="year" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+              <YAxis
+                stroke="#9CA3AF"
+                tick={{ fontSize: 12 }}
+                tickFormatter={(v) => `${v}%`}
+                domain={[
+                  1,
+                  0
+                ]}
+              />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                labelStyle={{ color: '#fff' }}
+                formatter={(value) => [`${value}%`, "Marge nette"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="margin"
+                stroke="#22c55e"
+                strokeWidth={1.5}
+                dot={{ r: 3, fill: "#fff", stroke: "#22c55e", strokeWidth: 1.5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
+        {/* Métriques financières détaillées */}
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
             <h2 className="text-xl font-bold text-white mb-4">Métriques Financières</h2>
             <div className="space-y-3">
@@ -292,7 +424,6 @@ const StockDashboard = () => {
             </div>
           </div>
         </div>
-
         {/* Section Piotroski F-Score */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-8 border-2 border-blue-500">
           
@@ -372,6 +503,30 @@ const StockDashboard = () => {
             <h4 className="text-white font-semibold mb-2">Interprétation :</h4>
             <p className="text-slate-300 text-sm">{piotroski_score.interpretation}</p>
           </div>
+        </div>
+        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h2 className="text-xl font-bold text-white mb-4">Actualités Yahoo Finance</h2>
+          {news.length === 0 ? (
+            <p className="text-slate-400 text-sm">Aucune actualité disponible pour ce titre.</p>
+          ) : (
+            <ul className="space-y-4">
+              {news.map((item, idx) => (
+                <li key={idx} className="border-b border-slate-700 pb-3">
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:underline"
+                  >
+                    {item.title}
+                  </a>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {item.publisher} • {new Date(item.published_at).toLocaleDateString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Footer avec info API */}

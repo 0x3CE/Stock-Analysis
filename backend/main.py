@@ -14,6 +14,8 @@ import yfinance as yf
 from datetime import datetime
 import pandas as pd
 from yfinance import Search as YFSearch
+import requests
+from datetime import datetime
 
 # === Configuration de l'application ===
 app = FastAPI(
@@ -69,6 +71,22 @@ class HistoricalData(BaseModel):
     price: float
     volume: int
 
+class DividendHistory(BaseModel):
+    year: str
+    amount: float
+    date: Optional[str] = None  # Optionnel, pour afficher la date exacte
+
+class ProfitMarginHistory(BaseModel):
+    year: str
+    net_income: float
+    margin: float
+
+class NewsItem(BaseModel):
+    title: str
+    url: str
+    publisher: Optional[str]
+    published_at: Optional[str]
+
 
 class StockAnalysis(BaseModel):
     ticker: str
@@ -76,6 +94,8 @@ class StockAnalysis(BaseModel):
     kpis: StockKPIs
     historical_data: List[HistoricalData]
     piotroski_score: PiotroskiScore
+    dividend_history: List[DividendHistory]
+    profit_margin_history: List[ProfitMarginHistory]
 
 
 # === Service métier : Récupération des données yfinance ===
@@ -179,6 +199,108 @@ class StockDataService:
             "current_ratio": round(float(info.get('currentRatio')), 2) if info.get('currentRatio') else None,
             "profit_margin": round(float(info.get('profitMargins') * 100), 2) if info.get('profitMargins') else None,
         }
+    
+    @staticmethod
+    def get_dividend_history(stock: yf.Ticker) -> List[Dict]:
+        try:
+            # Récupère l'historique des dividendes
+            dividends = stock.dividends
+            if dividends.empty:
+                return []
+
+            # Convertis l'index en datetime naif (sans fuseau horaire)
+            dividends.index = dividends.index.tz_localize(None)
+
+            # Filtre les 5 dernières années
+            now = datetime.now()
+            five_years_ago = now - pd.DateOffset(years=5)
+            filtered = dividends[dividends.index >= pd.Timestamp(five_years_ago)]
+
+            # Formate les données : une entrée par année (dernier dividende de l'année)
+            history = []
+            for year, group in filtered.groupby(filtered.index.year):
+                # Récupère la dernière date et le montant associé
+                last_date = group.index[-1]  # Dernière date du groupe
+                last_amount = group.iloc[-1]  # Dernier montant du groupe
+                history.append({
+                    "year": str(year),
+                    "amount": round(float(last_amount), 2),
+                    "date": last_date.strftime("%Y-%m-%d")  # Date du versement
+                })
+
+            return history
+
+        except Exception as e:
+            print(f"Erreur récupération dividendes: {e}")
+            return []
+        
+    @staticmethod
+    def get_profit_and_margin_history(stock: yf.Ticker) -> List[Dict]:
+        """
+        Récupère l'évolution du bénéfice net et de la marge nette sur plusieurs années.
+        """
+        try:
+            # Compte de résultat (annualisé)
+            financials = stock.financials
+            if financials.empty:
+                return []
+
+            history = []
+            for col in financials.columns:
+                try:
+                    year = col.year
+                    revenue = float(financials.loc["Total Revenue", col]) if "Total Revenue" in financials.index else None
+                    net_income = float(financials.loc["Net Income", col]) if "Net Income" in financials.index else None
+
+                    if revenue and net_income:
+                        margin = (net_income / revenue) * 100
+                        history.append({
+                            "year": str(year),
+                            "net_income": round(net_income / 1e9, 2),  # en milliards
+                            "margin": round(margin, 2)
+                        })
+                except Exception:
+                    continue
+
+            return sorted(history, key=lambda x: x["year"])
+        except Exception as e:
+            print(f"Erreur récupération bénéfices/marges: {e}")
+            return []
+
+    @staticmethod
+    def get_yahoo_news(ticker: str, limit: int = 5) -> List[Dict]:
+        """
+        Récupère les actualités Yahoo Finance pour un ticker donné.
+        """
+        try:
+            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount={limit}"
+            res = requests.get(url, timeout=10)
+            res.raise_for_status()
+            data = res.json()
+            news_items = data.get("news", [])
+
+            results = []
+            for n in news_items[:limit]:
+                title = n.get("title")
+                link = n.get("link")
+                publisher = n.get("publisher")
+                ts = n.get("providerPublishTime")
+
+                published_at = None
+                if ts:
+                    published_at = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+
+                results.append({
+                    "title": title,
+                    "url": link,
+                    "publisher": publisher,
+                    "published_at": published_at
+                })
+            return results
+
+        except Exception as e:
+            print(f"Erreur récupération news Yahoo : {e}")
+            return []
 
 
 # === Service métier : Calcul du Piotroski F-Score ===
@@ -276,6 +398,7 @@ class PiotroskiService:
         }
 
 
+
 # === Routes de l'API ===
 
 @app.get("/")
@@ -319,6 +442,21 @@ async def search_stocks(query: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur recherche : {str(e)}")
 
+@app.get("/news/{ticker}", response_model=List[NewsItem])
+async def get_stock_news(ticker: str):
+    """
+    Récupère les actualités Yahoo Finance pour une entreprise donnée.
+    """
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Ticker vide")
+
+    try:
+        news = StockDataService.get_yahoo_news(ticker)
+        if not news:
+            return []
+        return news
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur récupération news : {str(e)}")
 
 
 @app.get("/analyze/{input_str}", response_model=StockAnalysis)
@@ -354,18 +492,24 @@ async def analyze_stock(input_str: str):
     kpis = StockDataService.extract_kpis(stock)
     historical = StockDataService.get_historical_prices(stock, period="1y")
     piotroski = PiotroskiService.calculate_score(stock)
+    dividend_history = StockDataService.get_dividend_history(stock)
     name = ""
     try:
         name = stock.info.get("longName") or stock.info.get("shortName") or symbol
     except Exception:
         name = symbol
 
+    profit_margin_history = StockDataService.get_profit_and_margin_history(stock)
+
+
     return {
         "ticker": symbol,
         "name": name,
         "kpis": kpis,
         "historical_data": historical,
-        "piotroski_score": piotroski
+        "piotroski_score": piotroski,
+        "dividend_history": dividend_history,
+        "profit_margin_history": profit_margin_history
     }
 
 
