@@ -84,7 +84,7 @@ Endpoints disponibles :
 ### 2. Démarrer le Frontend (port 3000)
 
 ```bash
-cd frontend
+cd stock-dashboard
 npm start
 ```
 

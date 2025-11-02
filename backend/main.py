@@ -267,41 +267,6 @@ class StockDataService:
             print(f"Erreur récupération bénéfices/marges: {e}")
             return []
 
-    @staticmethod
-    def get_yahoo_news(ticker: str, limit: int = 5) -> List[Dict]:
-        """
-        Récupère les actualités Yahoo Finance pour un ticker donné.
-        """
-        try:
-            url = f"https://query1.finance.yahoo.com/v1/finance/search?q={ticker}&newsCount={limit}"
-            res = requests.get(url, timeout=10)
-            res.raise_for_status()
-            data = res.json()
-            news_items = data.get("news", [])
-
-            results = []
-            for n in news_items[:limit]:
-                title = n.get("title")
-                link = n.get("link")
-                publisher = n.get("publisher")
-                ts = n.get("providerPublishTime")
-
-                published_at = None
-                if ts:
-                    published_at = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
-
-                results.append({
-                    "title": title,
-                    "url": link,
-                    "publisher": publisher,
-                    "published_at": published_at
-                })
-            return results
-
-        except Exception as e:
-            print(f"Erreur récupération news Yahoo : {e}")
-            return []
-
 
 # === Service métier : Calcul du Piotroski F-Score ===
 class PiotroskiService:
