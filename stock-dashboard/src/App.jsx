@@ -15,7 +15,6 @@ const StockDashboard = () => {
   const [suggestions, setSuggestions] = useState([]);
   const debounceRef = useRef(null);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const [news, setNews] = useState([]);
 
 
   // Récupération des suggestions
@@ -487,30 +486,6 @@ const StockDashboard = () => {
             <h4 className="text-white font-semibold mb-2">Interprétation :</h4>
             <p className="text-slate-300 text-sm">{piotroski_score.interpretation}</p>
           </div>
-        </div>
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">Actualités Yahoo Finance</h2>
-          {news.length === 0 ? (
-            <p className="text-slate-400 text-sm">Aucune actualité disponible pour ce titre.</p>
-          ) : (
-            <ul className="space-y-4">
-              {news.map((item, idx) => (
-                <li key={idx} className="border-b border-slate-700 pb-3">
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
-                  >
-                    {item.title}
-                  </a>
-                  <p className="text-sm text-slate-400 mt-1">
-                    {item.publisher} • {new Date(item.published_at).toLocaleDateString()}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
 
         {/* Footer avec info API */}
