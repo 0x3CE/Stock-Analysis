@@ -4,7 +4,8 @@ import { LineChart,Line,BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Res
 
 
 // Configuration de l'URL de l'API backend
-const API_BASE_URL = 'http://localhost:8000';
+//const API_BASE_URL = 'http://localhost:8000';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const StockDashboard = () => {
   const [ticker, setTicker] = useState('AAPL');
@@ -25,7 +26,7 @@ const StockDashboard = () => {
     }
     setSuggestionsLoading(true);
     try {
-      const resp = await fetch(`${API_BASE_URL}/search/${encodeURIComponent(query)}`);
+      const resp = await fetch(`${API_URL}/search/${encodeURIComponent(query)}`);
       if (!resp.ok) {
         // si 404 -> pas de suggestions
         if (resp.status === 404) {
@@ -51,7 +52,7 @@ const StockDashboard = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze/${encodeURIComponent(symbol)}`);
+      const response = await fetch(`${API_URL}/analyze/${encodeURIComponent(symbol)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Erreur lors de la récupération des données');
@@ -72,7 +73,7 @@ const StockDashboard = () => {
 
   const fetchNews = async (symbol) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/news/${encodeURIComponent(symbol)}`);
+      const response = await fetch(`${API_URL}/news/${encodeURIComponent(symbol)}`);
       if (!response.ok) {
         throw new Error("Erreur lors de la récupération des actualités");
       }
