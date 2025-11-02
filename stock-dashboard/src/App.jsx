@@ -6,6 +6,7 @@ import { LineChart,Line,BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Res
 // Configuration de l'URL de l'API backend
 //const API_BASE_URL = 'http://localhost:8000';
 const API_URL = process.env.REACT_APP_API_URL;
+console.log("API_URL:", API_URL);
 
 const StockDashboard = () => {
   const [ticker, setTicker] = useState('AAPL');
