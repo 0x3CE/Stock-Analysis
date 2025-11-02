@@ -61,7 +61,6 @@ const StockDashboard = () => {
       const data = await response.json();
       setAnalysis(data);
       setSuggestions([]);
-      await fetchNews(symbol); // ← AJOUTE CETTE LIGNE
 
     } catch (err) {
       setError(err.message);
@@ -71,25 +70,9 @@ const StockDashboard = () => {
     }
   };
 
-  const fetchNews = async (symbol) => {
-    try {
-      const response = await fetch(`${API_URL}/news/${encodeURIComponent(symbol)}`);
-      if (!response.ok) {
-        throw new Error("Erreur lors de la récupération des actualités");
-      }
-      const data = await response.json();
-      setNews(data);
-    } catch (err) {
-      console.error("Erreur récupération news :", err);
-      setNews([]); // on vide la liste en cas d’erreur
-    }
-  };
-
-
   // Chargement initial
   useEffect(() => {
     fetchAnalysis(ticker);
-    fetchNews(ticker);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
