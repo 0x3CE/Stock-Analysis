@@ -99,7 +99,14 @@ class StockAnalysis(BaseModel):
 
 
 # === Service métier : Récupération des données yfinance ===
+from fastapi import HTTPException
+from typing import List, Dict
+from datetime import datetime
+import pandas as pd
+import yfinance as yf
+
 class StockDataService:
+
     @staticmethod
     def fetch_stock_info(ticker: str) -> yf.Ticker:
         """
@@ -111,23 +118,20 @@ class StockDataService:
         except Exception as e:
             raise HTTPException(status_code=404, detail=f"Erreur initialisation ticker {ticker}: {str(e)}")
 
-        # Try to read info / fast_info safely
-        info = {}
+        info, fast = {}, {}
         try:
             info = stock.info or {}
         except Exception:
             info = {}
 
-        fast = {}
         try:
             fast = getattr(stock, "fast_info", {}) or {}
         except Exception:
             fast = {}
 
-        # try common price fields
+        # Vérifie présence prix
         price = info.get("currentPrice") or info.get("regularMarketPrice") or fast.get("last_price") or fast.get("lastPrice")
         if price is None:
-            # fallback: try small history to detect whether ticker yields data
             try:
                 hist = stock.history(period="5d")
                 if hist.empty:
@@ -136,12 +140,12 @@ class StockDataService:
                 raise
             except Exception:
                 raise HTTPException(status_code=404, detail=f"Ticker {ticker} invalide ou données indisponibles")
+
         return stock
 
     @staticmethod
     def get_historical_prices(stock: yf.Ticker, period: str = "1y") -> List[Dict]:
         hist = stock.history(period=period)
-
         if hist.empty:
             return []
 
@@ -149,28 +153,23 @@ class StockDataService:
         for date, row in hist.iterrows():
             historical.append({
                 "date": date.strftime("%Y-%m-%d"),
-                "price": round(float(row.get('Close', row.get('close', 0))), 2),
-                "volume": int(row.get('Volume', row.get('volume', 0)) or 0)
+                "price": StockDataService.safe_float(row.get('Close') or row.get('close')),
+                "volume": int(row.get('Volume') or row.get('volume') or 0)
             })
-
         return historical
 
     @staticmethod
     def extract_kpis(stock: yf.Ticker) -> Dict:
-        # read info / fast_info robustly
-        info = {}
+        info, fast = {}, {}
         try:
             info = stock.info or {}
         except Exception:
             info = {}
-
-        fast = {}
         try:
             fast = getattr(stock, "fast_info", {}) or {}
         except Exception:
             fast = {}
 
-        # Price fallback
         current_price = info.get('currentPrice') or info.get('regularMarketPrice') or fast.get('last_price') or 0
         previous_close = info.get('previousClose') or current_price
         try:
@@ -184,63 +183,50 @@ class StockDataService:
         volume = info.get('volume') or 0
 
         return {
-            "current_price": round(float(current_price or 0), 2),
-            "price_change": round(float(price_change or 0), 2),
-            "market_cap": round(float(market_cap or 0) / 1e9, 2),
-            "pe_ratio": round(float(trailing_pe), 2) if trailing_pe else None,
-            "dividend_yield": round(float(dividend_yield * 100), 2) if dividend_yield else None,
-            "volume": round(float(volume or 0) / 1e6, 2),
-            "high_52w": round(float(info.get('fiftyTwoWeekHigh')), 2) if info.get('fiftyTwoWeekHigh') else None,
-            "low_52w": round(float(info.get('fiftyTwoWeekLow')), 2) if info.get('fiftyTwoWeekLow') else None,
-            "beta": round(float(info.get('beta')), 2) if info.get('beta') else None,
-            "eps": round(float(info.get('trailingEps')), 2) if info.get('trailingEps') else None,
-            "roe": round(float(info.get('returnOnEquity') * 100), 2) if info.get('returnOnEquity') else None,
-            "debt_to_equity": round(float(info.get('debtToEquity')), 2) if info.get('debtToEquity') else None,
-            "current_ratio": round(float(info.get('currentRatio')), 2) if info.get('currentRatio') else None,
-            "profit_margin": round(float(info.get('profitMargins') * 100), 2) if info.get('profitMargins') else None,
+            "current_price": StockDataService.safe_float(current_price),
+            "price_change": StockDataService.safe_float(price_change),
+            "market_cap": StockDataService.safe_float(market_cap / 1e9),
+            "pe_ratio": StockDataService.safe_float(trailing_pe),
+            "dividend_yield": StockDataService.safe_float(dividend_yield * 100) if dividend_yield else None,
+            "volume": StockDataService.safe_float(volume / 1e6),
+            "high_52w": StockDataService.safe_float(info.get('fiftyTwoWeekHigh')),
+            "low_52w": StockDataService.safe_float(info.get('fiftyTwoWeekLow')),
+            "beta": StockDataService.safe_float(info.get('beta')),
+            "eps": StockDataService.safe_float(info.get('trailingEps')),
+            "roe": StockDataService.safe_float(info.get('returnOnEquity') * 100),
+            "debt_to_equity": StockDataService.safe_float(info.get('debtToEquity')),
+            "current_ratio": StockDataService.safe_float(info.get('currentRatio')),
+            "profit_margin": StockDataService.safe_float(info.get('profitMargins') * 100),
         }
-    
+
     @staticmethod
     def get_dividend_history(stock: yf.Ticker) -> List[Dict]:
         try:
-            # Récupère l'historique des dividendes
             dividends = stock.dividends
             if dividends.empty:
                 return []
 
-            # Convertis l'index en datetime naif (sans fuseau horaire)
             dividends.index = dividends.index.tz_localize(None)
-
-            # Filtre les 5 dernières années
-            now = datetime.now()
-            five_years_ago = now - pd.DateOffset(years=5)
+            five_years_ago = datetime.now() - pd.DateOffset(years=5)
             filtered = dividends[dividends.index >= pd.Timestamp(five_years_ago)]
 
-            # Formate les données : une entrée par année (dernier dividende de l'année)
             history = []
             for year, group in filtered.groupby(filtered.index.year):
-                # Récupère la dernière date et le montant associé
-                last_date = group.index[-1]  # Dernière date du groupe
-                last_amount = group.iloc[-1]  # Dernier montant du groupe
+                last_date = group.index[-1]
+                last_amount = group.iloc[-1]
                 history.append({
                     "year": str(year),
-                    "amount": round(float(last_amount), 2),
-                    "date": last_date.strftime("%Y-%m-%d")  # Date du versement
+                    "amount": StockDataService.safe_float(last_amount),
+                    "date": last_date.strftime("%Y-%m-%d")
                 })
-
             return history
-
         except Exception as e:
             print(f"Erreur récupération dividendes: {e}")
             return []
-        
+
     @staticmethod
     def get_profit_and_margin_history(stock: yf.Ticker) -> List[Dict]:
-        """
-        Récupère l'évolution du bénéfice net et de la marge nette sur plusieurs années.
-        """
         try:
-            # Compte de résultat (annualisé)
             financials = stock.financials
             if financials.empty:
                 return []
@@ -249,23 +235,30 @@ class StockDataService:
             for col in financials.columns:
                 try:
                     year = col.year
-                    revenue = float(financials.loc["Total Revenue", col]) if "Total Revenue" in financials.index else None
-                    net_income = float(financials.loc["Net Income", col]) if "Net Income" in financials.index else None
-
+                    revenue = StockDataService.safe_float(financials.loc["Total Revenue", col]) if "Total Revenue" in financials.index else None
+                    net_income = StockDataService.safe_float(financials.loc["Net Income", col]) if "Net Income" in financials.index else None
                     if revenue and net_income:
-                        margin = (net_income / revenue) * 100
+                        margin = (net_income / revenue * 100) if revenue else 0
                         history.append({
                             "year": str(year),
-                            "net_income": round(net_income / 1e9, 2),  # en milliards
+                            "net_income": round(net_income / 1e9, 2),
                             "margin": round(margin, 2)
                         })
                 except Exception:
                     continue
-
             return sorted(history, key=lambda x: x["year"])
         except Exception as e:
             print(f"Erreur récupération bénéfices/marges: {e}")
             return []
+
+    # === Utils ===
+    @staticmethod
+    def safe_float(value):
+        try:
+            return round(float(value), 2)
+        except (TypeError, ValueError):
+            return None
+
 
 
 # === Service métier : Calcul du Piotroski F-Score ===
