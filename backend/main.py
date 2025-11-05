@@ -1,40 +1,38 @@
 """
 Backend API pour l'analyse d'actions avec calcul du Piotroski F-Score.
-Architecture: FastAPI + yfinance pour une séparation claire des responsabilités.
+Architecture: FastAPI + yfinance.
 
-Installation requise:
-pip install fastapi uvicorn yfinance pandas python-dotenv
+Installation:
+pip install fastapi uvicorn yfinance pandas python-dotenv numpy
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict, List
+from typing import Optional, List, Dict, Any
 import yfinance as yf
+from yfinance import Search as YFSearch
 from datetime import datetime
 import pandas as pd
-from yfinance import Search as YFSearch
-import requests
-from datetime import datetime
+import numpy as np
 
-# === Configuration de l'application ===
+# === Configuration FastAPI ===
 app = FastAPI(
     title="Stock Analysis API",
     description="API d'analyse d'actions avec Piotroski F-Score",
     version="1.0.0"
 )
 
-# Configuration CORS pour autoriser les requêtes depuis le frontend React
+# CORS pour React
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production: spécifier les domaines autorisés
+    allow_origins=["*"],  # En prod : restreindre le domaine
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# === Modèles de données (Pydantic pour validation) ===
+# === Modèles Pydantic ===
 class StockKPIs(BaseModel):
     current_price: float
     price_change: float
@@ -51,12 +49,10 @@ class StockKPIs(BaseModel):
     current_ratio: Optional[float]
     profit_margin: Optional[float]
 
-
 class PiotroskiCriterion(BaseModel):
     criterion: str
     score: int
     detail: str
-
 
 class PiotroskiScore(BaseModel):
     total_score: int
@@ -64,7 +60,6 @@ class PiotroskiScore(BaseModel):
     leverage: List[PiotroskiCriterion]
     operating: List[PiotroskiCriterion]
     interpretation: str
-
 
 class HistoricalData(BaseModel):
     date: str
@@ -74,7 +69,7 @@ class HistoricalData(BaseModel):
 class DividendHistory(BaseModel):
     year: str
     amount: float
-    date: Optional[str] = None  # Optionnel, pour afficher la date exacte
+    date: Optional[str] = None
 
 class ProfitMarginHistory(BaseModel):
     year: str
@@ -87,7 +82,6 @@ class NewsItem(BaseModel):
     publisher: Optional[str]
     published_at: Optional[str]
 
-
 class StockAnalysis(BaseModel):
     ticker: str
     name: str
@@ -97,19 +91,9 @@ class StockAnalysis(BaseModel):
     dividend_history: List[DividendHistory]
     profit_margin_history: List[ProfitMarginHistory]
 
-
-# === Service métier : Récupération des données yfinance ===
-import yfinance as yf
-import pandas as pd
-from datetime import datetime
-from fastapi import HTTPException
-from typing import Dict, List, Any
-import numpy as np
-
-
+# === Service pour les données yfinance ===
 class StockDataService:
 
-    # === OUTIL INTERNE ===
     @staticmethod
     def safe_float(value: Any) -> float:
         try:
@@ -119,62 +103,27 @@ class StockDataService:
         except Exception:
             return 0.0
 
-    # === RÉCUPÉRATION PRINCIPALE ===
     @staticmethod
     def fetch_stock_info(ticker: str) -> yf.Ticker:
+        stock = yf.Ticker(ticker)
         try:
-            stock = yf.Ticker(ticker)
-        except Exception as e:
-            raise HTTPException(status_code=404, detail=f"Erreur initialisation ticker {ticker}: {e}")
-
-        # Test basique
-        try:
-            test = stock.fast_info or stock.info
+            # Test minimal pour vérifier que le ticker existe
+            _ = stock.fast_info or stock.info
         except Exception:
             raise HTTPException(status_code=404, detail=f"Aucune donnée trouvée pour {ticker}")
-
         return stock
 
-    # === HISTORIQUE DES PRIX ===
-    @staticmethod
-    def get_historical_prices(stock: yf.Ticker, period: str = "1y") -> List[Dict]:
-        try:
-            hist = stock.history(period=period)
-            if hist.empty:
-                return []
-            return [
-                {
-                    "date": date.strftime("%Y-%m-%d"),
-                    "price": round(float(row.get("Close", 0)), 2),
-                    "volume": int(row.get("Volume", 0) or 0)
-                }
-                for date, row in hist.iterrows()
-            ]
-        except Exception:
-            return []
-
-    # === EXTRACTION DES KPI ===
     @staticmethod
     def extract_kpis(stock: yf.Ticker) -> Dict:
-        try:
-            info = stock.info or {}
-        except Exception:
-            info = {}
-
-        try:
-            fast = getattr(stock, "fast_info", {}) or {}
-        except Exception:
-            fast = {}
+        info = getattr(stock, "info", {}) or {}
+        fast = getattr(stock, "fast_info", {}) or {}
 
         def g(key, alt=None):
             return info.get(key) or fast.get(alt) or None
 
         current_price = g("currentPrice", "last_price")
         prev_close = g("previousClose", "last_price")
-        if not current_price or not prev_close:
-            price_change = 0
-        else:
-            price_change = ((current_price - prev_close) / prev_close) * 100
+        price_change = ((current_price - prev_close) / prev_close * 100) if current_price and prev_close else 0
 
         return {
             "current_price": round(StockDataService.safe_float(current_price), 2),
@@ -193,181 +142,172 @@ class StockDataService:
             "profit_margin": round(StockDataService.safe_float(g("profitMargins")) * 100, 2) if g("profitMargins") else None,
         }
 
-    # === DIVIDENDES ===
+    @staticmethod
+    def get_historical_prices(stock: yf.Ticker, period: str = "1y") -> List[Dict]:
+        hist = stock.history(period=period)
+        if hist.empty:
+            return []
+        hist.reset_index(inplace=True)
+        return [{"date": d.strftime("%Y-%m-%d"), "price": round(float(c), 2), "volume": int(v)}
+                for d, c, v in zip(hist['Date'], hist['Close'], hist['Volume'])]
+
     @staticmethod
     def get_dividend_history(stock: yf.Ticker) -> List[Dict]:
-        try:
-            dividends = stock.dividends
-            if dividends.empty:
-                return []
-
-            dividends.index = dividends.index.tz_localize(None)
-            now = datetime.now()
-            filtered = dividends[dividends.index >= (now - pd.DateOffset(years=5))]
-
-            result = []
-            for year, group in filtered.groupby(filtered.index.year):
-                last_date = group.index[-1]
-                last_amount = group.iloc[-1]
-                result.append({
-                    "year": str(year),
-                    "amount": round(float(last_amount), 2),
-                    "date": last_date.strftime("%Y-%m-%d")
-                })
-            return result
-        except Exception:
+        divs = getattr(stock, "dividends", pd.Series())
+        if divs.empty:
             return []
+        divs.index = divs.index.tz_localize(None)
+        now = datetime.now()
+        filtered = divs[divs.index >= (now - pd.DateOffset(years=5))]
+        result = []
+        for year, group in filtered.groupby(filtered.index.year):
+            last_date = group.index[-1]
+            last_amount = group.iloc[-1]
+            result.append({
+                "year": str(year),
+                "amount": round(float(last_amount), 2),
+                "date": last_date.strftime("%Y-%m-%d")
+            })
+        return result
 
-    # === BÉNÉFICES ET MARGES ===
     @staticmethod
     def get_profit_and_margin_history(stock: yf.Ticker) -> List[Dict]:
-        try:
-            financials = stock.financials
-        except Exception:
+        fin = getattr(stock, "financials", pd.DataFrame())
+        if fin.empty:
             return []
 
-        if financials.empty:
-            return []
-
+        fin = fin.fillna(0)
         history = []
-        for col in financials.columns:
+        for col in fin.columns:
             try:
-                year = getattr(col, "year", str(col))
-                revenue = StockDataService.safe_float(financials.loc.get("Total Revenue", {}).get(col))
-                net_income = StockDataService.safe_float(financials.loc.get("Net Income", {}).get(col))
-                if revenue != 0:
-                    margin = (net_income / revenue) * 100
-                    history.append({
-                        "year": str(year),
-                        "net_income": round(net_income / 1e9, 2),
-                        "margin": round(margin, 2)
-                    })
+                year = col.year if hasattr(col, "year") else str(col)
+                revenue = StockDataService.safe_float(fin.at["Total Revenue", col])
+                net_income = StockDataService.safe_float(fin.at["Net Income", col])
+                margin = (net_income / revenue * 100) if revenue else 0
+                history.append({"year": str(year), "net_income": round(net_income / 1e9, 2), "margin": round(margin, 2)})
             except Exception:
                 continue
-
         return sorted(history, key=lambda x: x["year"])
 
-    # === PIOTROSKI F-SCORE ===
     @staticmethod
     def compute_piotroski_fscore(stock: yf.Ticker) -> Dict:
-        try:
-            bs = stock.balance_sheet
-            is_ = stock.financials
-            cf = stock.cashflow
-        except Exception:
-            return {"score": None, "details": {}}
+        bs = getattr(stock, "balance_sheet", pd.DataFrame())
+        is_ = getattr(stock, "financials", pd.DataFrame())
+        cf = getattr(stock, "cashflow", pd.DataFrame())
 
-        score = 0
-        details = {}
+        if bs.empty or is_.empty or cf.empty:
+            return {
+                "total_score": 0,
+                "profitability": [],
+                "leverage": [],
+                "operating": [],
+                "interpretation": "N/A"
+            }
 
         def safe(df, row, col):
             try:
-                return StockDataService.safe_float(df.loc[row, col])
+                return StockDataService.safe_float(df.at[row, col])
             except Exception:
                 return 0
 
         cols = is_.columns[:2] if len(is_.columns) >= 2 else is_.columns
-        if len(cols) < 2:
-            return {"score": None, "details": {}}
+        current, prev = cols[0], cols[1] if len(cols) > 1 else cols[0]
 
-        current, prev = cols[0], cols[1]
+        total_score = 0
+        profitability, leverage, operating = [], [], []
 
         # 1. ROA positive
-        roa_curr = safe(is_, "Net Income", current) / safe(bs, "Total Assets", current)
-        if roa_curr > 0:
-            score += 1
-            details["ROA positive"] = True
+        roa_curr = safe(is_, "Net Income", current) / max(safe(bs, "Total Assets", current), 1)
+        score = 1 if roa_curr > 0 else 0
+        total_score += score
+        profitability.append({"criterion": "ROA positive", "score": score, "detail": f"ROA={roa_curr:.2f}"})
 
-        # 2. Cash flow positif
+        # 2. CFO positif
         cfo = safe(cf, "Total Cash From Operating Activities", current)
-        if cfo > 0:
-            score += 1
-            details["Cash flow positif"] = True
+        score = 1 if cfo > 0 else 0
+        total_score += score
+        profitability.append({"criterion": "Cash flow positif", "score": score, "detail": f"CFO={cfo:.2f}"})
 
-        # 3. Amélioration ROA
-        roa_prev = safe(is_, "Net Income", prev) / safe(bs, "Total Assets", prev)
-        if roa_curr > roa_prev:
-            score += 1
-            details["ROA improving"] = True
+        # 3. ROA improving
+        roa_prev = safe(is_, "Net Income", prev) / max(safe(bs, "Total Assets", prev), 1)
+        score = 1 if roa_curr > roa_prev else 0
+        total_score += score
+        profitability.append({"criterion": "ROA improving", "score": score, "detail": f"Prev={roa_prev:.2f} Curr={roa_curr:.2f}"})
 
         # 4. CFO > Net Income
-        if cfo > safe(is_, "Net Income", current):
-            score += 1
-            details["CFO > Net Income"] = True
+        ni = safe(is_, "Net Income", current)
+        score = 1 if cfo > ni else 0
+        total_score += score
+        profitability.append({"criterion": "CFO > Net Income", "score": score, "detail": f"CFO={cfo:.2f} NI={ni:.2f}"})
 
-        # 5. Diminution du leverage
-        leverage_curr = safe(bs, "Long Term Debt", current) / safe(bs, "Total Assets", current)
-        leverage_prev = safe(bs, "Long Term Debt", prev) / safe(bs, "Total Assets", prev)
-        if leverage_curr < leverage_prev:
-            score += 1
-            details["Leverage decreased"] = True
+        # 5. Leverage decreased
+        leverage_curr = safe(bs, "Long Term Debt", current) / max(safe(bs, "Total Assets", current), 1)
+        leverage_prev = safe(bs, "Long Term Debt", prev) / max(safe(bs, "Total Assets", prev), 1)
+        score = 1 if leverage_curr < leverage_prev else 0
+        total_score += score
+        leverage.append({"criterion": "Leverage decreased", "score": score, "detail": f"Prev={leverage_prev:.2f} Curr={leverage_curr:.2f}"})
 
-        # 6. Amélioration du current ratio
-        curr_ratio_curr = safe(bs, "Total Current Assets", current) / safe(bs, "Total Current Liabilities", current)
-        curr_ratio_prev = safe(bs, "Total Current Assets", prev) / safe(bs, "Total Current Liabilities", prev)
-        if curr_ratio_curr > curr_ratio_prev:
-            score += 1
-            details["Current ratio improved"] = True
+        # 6. Current ratio improved
+        curr_ratio_curr = safe(bs, "Total Current Assets", current) / max(safe(bs, "Total Current Liabilities", current), 1)
+        curr_ratio_prev = safe(bs, "Total Current Assets", prev) / max(safe(bs, "Total Current Liabilities", prev), 1)
+        score = 1 if curr_ratio_curr > curr_ratio_prev else 0
+        total_score += score
+        leverage.append({"criterion": "Current ratio improved", "score": score, "detail": f"Prev={curr_ratio_prev:.2f} Curr={curr_ratio_curr:.2f}"})
 
-        # 7. Pas d’émission d’actions
+        # 7. No new shares
         shares_curr = safe(bs, "Ordinary Shares Number", current)
         shares_prev = safe(bs, "Ordinary Shares Number", prev)
-        if shares_curr <= shares_prev:
-            score += 1
-            details["No new shares"] = True
+        score = 1 if shares_curr <= shares_prev else 0
+        total_score += score
+        leverage.append({"criterion": "No new shares", "score": score, "detail": f"Prev={shares_prev} Curr={shares_curr}"})
 
-        # 8. Amélioration de la marge brute
-        gross_margin_curr = safe(is_, "Gross Profit", current) / safe(is_, "Total Revenue", current)
-        gross_margin_prev = safe(is_, "Gross Profit", prev) / safe(is_, "Total Revenue", prev)
-        if gross_margin_curr > gross_margin_prev:
-            score += 1
-            details["Gross margin improved"] = True
+        # 8. Gross margin improved
+        gm_curr = safe(is_, "Gross Profit", current) / max(safe(is_, "Total Revenue", current), 1)
+        gm_prev = safe(is_, "Gross Profit", prev) / max(safe(is_, "Total Revenue", prev), 1)
+        score = 1 if gm_curr > gm_prev else 0
+        total_score += score
+        operating.append({"criterion": "Gross margin improved", "score": score, "detail": f"Prev={gm_prev:.2f} Curr={gm_curr:.2f}"})
 
-        # 9. Amélioration du turnover (efficacité)
-        asset_turn_curr = safe(is_, "Total Revenue", current) / safe(bs, "Total Assets", current)
-        asset_turn_prev = safe(is_, "Total Revenue", prev) / safe(bs, "Total Assets", prev)
-        if asset_turn_curr > asset_turn_prev:
-            score += 1
-            details["Asset turnover improved"] = True
+        # 9. Asset turnover improved
+        at_curr = safe(is_, "Total Revenue", current) / max(safe(bs, "Total Assets", current), 1)
+        at_prev = safe(is_, "Total Revenue", prev) / max(safe(bs, "Total Assets", prev), 1)
+        score = 1 if at_curr > at_prev else 0
+        total_score += score
+        operating.append({"criterion": "Asset turnover improved", "score": score, "detail": f"Prev={at_prev:.2f} Curr={at_curr:.2f}"})
 
-        return {"score": score, "details": details}
+        # Interprétation
+        if total_score >= 7:
+            interp = "EXCELLENT"
+        elif total_score >= 4:
+            interp = "MOYEN"
+        else:
+            interp = "FAIBLE"
 
+        return {
+            "total_score": total_score,
+            "profitability": profitability,
+            "leverage": leverage,
+            "operating": operating,
+            "interpretation": interp
+        }
 
-# === Routes de l'API ===
-
+# === Routes API ===
 @app.get("/")
 async def root():
-    return {
-        "message": "Stock Analysis API",
-        "version": "1.0.0",
-        "endpoints": {
-            "/analyze/{ticker}": "Analyse complète d'une action",
-            "/health": "Statut de l'API",
-            "/search/{query}": "Recherche d'actions par nom ou ticker"
-        }
-    }
-
+    return {"message": "Stock Analysis API", "version": "1.0.0"}
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-
-# === RECHERCHE DE TICKER ===
-
 @app.get("/search/{query}")
 async def search_stocks(query: str):
-    """
-    Recherche d’actions via Yahoo Finance (max 8 résultats)
-    """
+    query = query.strip()
+    if not query:
+        return {"results": []}
     try:
-        query = query.strip()
-        if not query:
-            return {"results": []}
-
         search_obj = YFSearch(query, max_results=8)
         res = search_obj.search()
-
         quotes = res.quotes or []
         results = []
         for q in quotes[:5]:
@@ -375,31 +315,21 @@ async def search_stocks(query: str):
             name = q.get("shortname") or q.get("longname") or ""
             if sym:
                 results.append({"symbol": sym, "name": name})
-
         return {"results": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur recherche : {str(e)}")
 
-
-# === ANALYSE COMPLÈTE ===
-
 @app.get("/analyze/{input_str}")
 async def analyze_stock(input_str: str):
-    """
-    Analyse complète d'une action :
-    KPIs, historique de prix, bénéfices/marge, dividendes et score Piotroski
-    """
     raw = input_str.strip()
     if not raw:
         raise HTTPException(status_code=400, detail="Ticker/nom vide")
 
     symbol = raw.upper()
-
-    # Étape 1 — Tentative directe
     try:
         stock = StockDataService.fetch_stock_info(symbol)
     except HTTPException:
-        # Étape 2 — Recherche par nom si le ticker n’existe pas
+        # Recherche par nom
         try:
             results = yf.search(raw)
         except Exception as e:
@@ -407,16 +337,14 @@ async def analyze_stock(input_str: str):
         if not results:
             raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{raw}'")
         symbol = results[0].get("symbol")
-        if not symbol:
-            raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{raw}'")
         stock = StockDataService.fetch_stock_info(symbol)
 
-    # === Extraction des données ===
+    # Extraction
     kpis = StockDataService.extract_kpis(stock)
     historical = StockDataService.get_historical_prices(stock, period="1y")
-    piotroski = StockDataService.compute_piotroski_fscore(stock)
     dividend_history = StockDataService.get_dividend_history(stock)
     profit_margin_history = StockDataService.get_profit_and_margin_history(stock)
+    piotroski = StockDataService.compute_piotroski_fscore(stock)
 
     try:
         name = stock.info.get("longName") or stock.info.get("shortName") or symbol
@@ -433,13 +361,6 @@ async def analyze_stock(input_str: str):
         "profit_margin_history": profit_margin_history
     }
 
-
-# === Point d'entrée de l'application ===
+# === Lancer avec uvicorn ===
 # if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(
-#         "main:app",
-#         host="0.0.0.0",
-#         port=8000,
-#         reload=True
-#     )
+#     import
