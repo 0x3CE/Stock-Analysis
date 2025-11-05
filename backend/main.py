@@ -193,7 +193,7 @@ class StockDataService:
     def compute_piotroski_fscore(stock: yf.Ticker) -> Dict:
         bs = getattr(stock, "balance_sheet", pd.DataFrame())
         is_ = getattr(stock, "financials", pd.DataFrame())
-        cf = getattr(stock, "cashflow", pd.DataFrame())
+        cf = getattr(stock, "freeCashflow", pd.DataFrame())
 
         if bs.empty or is_.empty or cf.empty:
             return {

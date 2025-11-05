@@ -1,7 +1,7 @@
 import yfinance as yf
 
 # Remplace "IREN" par n'importe quel ticker pour tester
-ticker_symbol = "IREN"
+ticker_symbol = "NVDA"
 
 # Crée l'objet Ticker
 stock = yf.Ticker(ticker_symbol)
