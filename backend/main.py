@@ -248,11 +248,10 @@ class StockDataService:
         leverage.append({"criterion": "Leverage decreased", "score": score, "detail": f"Prev={leverage_prev:.2f} Curr={leverage_curr:.2f}"})
 
         # 6. Current ratio improved
-        curr_ratio_curr = safe(bs, "Total Current Assets", current) / max(safe(bs, "Total Current Liabilities", current), 1)
-        curr_ratio_prev = safe(bs, "Total Current Assets", prev) / max(safe(bs, "Total Current Liabilities", prev), 1)
-        score = 1 if curr_ratio_curr > curr_ratio_prev else 0
+        curr_ratio_curr = StockDataService.safe_float(info.get("currentRatio", 0))
+        score = 1 if curr_ratio_curr > 0 else 0
         total_score += score
-        leverage.append({"criterion": "Current ratio improved", "score": score, "detail": f"Prev={curr_ratio_prev:.2f} Curr={curr_ratio_curr:.2f}"})
+        leverage.append({"criterion": "Current ratio improved", "score": score, "detail": f"Curr={curr_ratio_curr:.2f}"})
 
         # 7. No new shares
         shares_curr = safe(bs, "Ordinary Shares Number", current)
