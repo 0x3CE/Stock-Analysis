@@ -190,12 +190,12 @@ class StockDataService:
         return sorted(history, key=lambda x: x["year"])
 
     @staticmethod
-    def compute_piotroski_fscore(stock: yf.Ticker) -> Dict:
+    def compute_piotroski_fscore(stock: yf.Ticker) -> dict:
         bs = getattr(stock, "balance_sheet", pd.DataFrame())
         is_ = getattr(stock, "financials", pd.DataFrame())
-        cf = getattr(stock, "cashflow", pd.DataFrame())
+        info = getattr(stock, "info", {})
 
-        if bs.empty or is_.empty or cf.empty:
+        if bs.empty or is_.empty or not info:
             return {
                 "total_score": 0,
                 "profitability": [],
@@ -222,8 +222,8 @@ class StockDataService:
         total_score += score
         profitability.append({"criterion": "ROA positive", "score": score, "detail": f"ROA={roa_curr:.2f}"})
 
-        # 2. CFO positif
-        cfo = safe(cf, "Total Cash From Operating Activities", current)
+        # 2. CFO positif (depuis info)
+        cfo = StockDataService.safe_float(info.get("freeCashflow", 0))
         score = 1 if cfo > 0 else 0
         total_score += score
         profitability.append({"criterion": "Cash flow positif", "score": score, "detail": f"CFO={cfo:.2f}"})
@@ -290,6 +290,7 @@ class StockDataService:
             "operating": operating,
             "interpretation": interp
         }
+
 
 # === Routes API ===
 @app.get("/")

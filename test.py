@@ -14,12 +14,3 @@ financials = stock.financials
 
 print("=== INFO ===")
 print(info)
-
-print("\n=== FAST INFO ===")
-print(fast_info)
-
-print("\n=== HISTORIQUE 5J ===")
-print(history)
-
-print("\n=== FINANCIALS ===")
-print(financials)
