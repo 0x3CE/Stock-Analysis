@@ -99,12 +99,6 @@ class StockAnalysis(BaseModel):
 
 
 # === Service métier : Récupération des données yfinance ===
-from fastapi import HTTPException
-from typing import List, Dict
-from datetime import datetime
-import pandas as pd
-import yfinance as yf
-
 class StockDataService:
 
     @staticmethod
@@ -172,32 +166,38 @@ class StockDataService:
 
         current_price = info.get('currentPrice') or info.get('regularMarketPrice') or fast.get('last_price') or 0
         previous_close = info.get('previousClose') or current_price
-        try:
-            price_change = ((current_price - previous_close) / previous_close * 100) if previous_close else 0
-        except Exception:
-            price_change = 0
+        price_change = 0
+        if previous_close:
+            try:
+                price_change = ((current_price - previous_close) / previous_close * 100)
+            except Exception:
+                price_change = 0
 
         market_cap = info.get('marketCap') or 0
         dividend_yield = info.get('dividendYield')
         trailing_pe = info.get('trailingPE')
         volume = info.get('volume') or 0
 
+        def safe_pct(value):
+            return round(float(value)*100,2) if value not in (None,0) else None
+
         return {
             "current_price": StockDataService.safe_float(current_price),
             "price_change": StockDataService.safe_float(price_change),
             "market_cap": StockDataService.safe_float(market_cap / 1e9),
             "pe_ratio": StockDataService.safe_float(trailing_pe),
-            "dividend_yield": StockDataService.safe_float(dividend_yield * 100) if dividend_yield else None,
+            "dividend_yield": safe_pct(dividend_yield),
             "volume": StockDataService.safe_float(volume / 1e6),
             "high_52w": StockDataService.safe_float(info.get('fiftyTwoWeekHigh')),
             "low_52w": StockDataService.safe_float(info.get('fiftyTwoWeekLow')),
             "beta": StockDataService.safe_float(info.get('beta')),
             "eps": StockDataService.safe_float(info.get('trailingEps')),
-            "roe": StockDataService.safe_float(info.get('returnOnEquity') * 100),
+            "roe": safe_pct(info.get('returnOnEquity')),
             "debt_to_equity": StockDataService.safe_float(info.get('debtToEquity')),
             "current_ratio": StockDataService.safe_float(info.get('currentRatio')),
-            "profit_margin": StockDataService.safe_float(info.get('profitMargins') * 100),
+            "profit_margin": safe_pct(info.get('profitMargins')),
         }
+
 
     @staticmethod
     def get_dividend_history(stock: yf.Ticker) -> List[Dict]:
@@ -235,14 +235,17 @@ class StockDataService:
             for col in financials.columns:
                 try:
                     year = col.year
-                    revenue = StockDataService.safe_float(financials.loc["Total Revenue", col]) if "Total Revenue" in financials.index else None
-                    net_income = StockDataService.safe_float(financials.loc["Net Income", col]) if "Net Income" in financials.index else None
-                    if revenue and net_income:
-                        margin = (net_income / revenue * 100) if revenue else 0
+                    revenue = financials.loc["Total Revenue", col] if "Total Revenue" in financials.index else None
+                    net_income = financials.loc["Net Income", col] if "Net Income" in financials.index else None
+
+                    if revenue is not None and net_income is not None:
+                        net_income_val = StockDataService.safe_float(net_income)
+                        revenue_val = StockDataService.safe_float(revenue)
+                        margin_val = round((net_income_val / revenue_val) * 100,2) if revenue_val else None
                         history.append({
                             "year": str(year),
-                            "net_income": round(net_income / 1e9, 2),
-                            "margin": round(margin, 2)
+                            "net_income": net_income_val / 1e9 if net_income_val else None,
+                            "margin": margin_val
                         })
                 except Exception:
                     continue
@@ -297,8 +300,8 @@ class PiotroskiService:
         })
 
         net_income = info.get('netIncomeToCommon') or 0
-        quality_score = 1 if ocf > net_income else 0
-        detail_ni = f"OCF/NI: {round(ocf / net_income, 2) if net_income else 'N/A'}"
+        quality_score = 1 if ocf and net_income and ocf > net_income else 0
+        detail_ni = f"OCF/NI: {round((ocf / net_income),2) if net_income else 'N/A'}"
         profitability.append({
             "criterion": "Qualité des bénéfices (OCF > NI)",
             "score": quality_score,
