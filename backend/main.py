@@ -193,7 +193,7 @@ class StockDataService:
     def compute_piotroski_fscore(stock: yf.Ticker) -> Dict:
         bs = getattr(stock, "balance_sheet", pd.DataFrame())
         is_ = getattr(stock, "financials", pd.DataFrame())
-        cf = getattr(stock, "freeCashflow", pd.DataFrame())
+        cf = getattr(stock, "cashflow", pd.DataFrame())
 
         if bs.empty or is_.empty or cf.empty:
             return {
@@ -277,11 +277,11 @@ class StockDataService:
 
         # Interprétation
         if total_score >= 7:
-            interp = "EXCELLENT"
+            interp = "Entreprise solide. Très bonne gestion"
         elif total_score >= 4:
-            interp = "MOYEN"
+            interp = "Entreprise avec du potentiel. Bien analyser avant d'investir"
         else:
-            interp = "FAIBLE"
+            interp = "A fuir"
 
         return {
             "total_score": total_score,
