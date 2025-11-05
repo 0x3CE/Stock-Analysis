@@ -133,7 +133,7 @@ const StockDashboard = () => {
 
   if (!analysis) return null;
 
-  const { kpis, historical_data, piotroski_score, name } = analysis;
+  const { kpis, historical_data, piotroski_score, name, dividend_history, profit_margin_history } = analysis;
   const lastMonthData = historical_data.slice(-30);
   console.log("Données des dividendes dans le composant :", analysis?.dividend_history);
 
@@ -346,10 +346,7 @@ const StockDashboard = () => {
                 stroke="#9CA3AF"
                 tick={{ fontSize: 12 }}
                 tickFormatter={(v) => `${v}%`}
-                domain={[
-                  1,
-                  0
-                ]}
+                domain={['auto', 'auto']}
               />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
