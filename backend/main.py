@@ -189,107 +189,152 @@ class StockDataService:
                 continue
         return sorted(history, key=lambda x: x["year"])
 
+    # === PIOTROSKI F-SCORE ===
     @staticmethod
     def compute_piotroski_fscore(stock: yf.Ticker) -> Dict:
-        bs = getattr(stock, "balance_sheet", pd.DataFrame())
-        is_ = getattr(stock, "financials", pd.DataFrame())
-        cf = getattr(stock, "cashflow", pd.DataFrame())
-
-        if bs.empty or is_.empty or cf.empty:
+        """
+        Calcule le Piotroski F-Score d'une action.
+        Renvoie le score total et le détail des 9 critères.
+        """
+        try:
+            bs = getattr(stock, "balance_sheet", pd.DataFrame())
+            is_ = getattr(stock, "financials", pd.DataFrame())
+            cf = getattr(stock, "cashflow", pd.DataFrame())
+            info = getattr(stock, "info", {})
+        except Exception:
             return {
                 "total_score": 0,
                 "profitability": [],
                 "leverage": [],
                 "operating": [],
-                "interpretation": "N/A"
+                "interpretation": "Pas de données"
             }
+
+        score = 0
+        profitability = []
+        leverage_list = []
+        operating_list = []
 
         def safe(df, row, col):
             try:
-                return StockDataService.safe_float(df.at[row, col])
+                return StockDataService.safe_float(df.loc[row, col])
             except Exception:
-                return 0
+                return 0.0
 
         cols = is_.columns[:2] if len(is_.columns) >= 2 else is_.columns
-        current, prev = cols[0], cols[1] if len(cols) > 1 else cols[0]
+        if len(cols) < 2:
+            return {
+                "total_score": 0,
+                "profitability": [],
+                "leverage": [],
+                "operating": [],
+                "interpretation": "Pas assez de données"
+            }
 
-        total_score = 0
-        profitability, leverage, operating = [], [], []
+        current, prev = cols[0], cols[1]
 
-        # 1. ROA positive
-        roa_curr = safe(is_, "Net Income", current) / max(safe(bs, "Total Assets", current), 1)
-        score = 1 if roa_curr > 0 else 0
-        total_score += score
-        profitability.append({"criterion": "ROA positive", "score": score, "detail": f"ROA={roa_curr:.2f}"})
+        # === 1. Rentabilité ===
 
-        # 2. CFO positif
+        # ROA positif
+        roa_curr = safe(is_, "Net Income", current) / safe(bs, "Total Assets", current)
+        if roa_curr > 0:
+            score += 1
+            profitability.append({"criterion": "ROA positif", "score": 1, "detail": "Rentabilité positive"})
+        else:
+            profitability.append({"criterion": "ROA positif", "score": 0, "detail": "ROA négatif"})
+
+        # Cash Flow positif (préférence cashflow historique, sinon freeCashflow)
         cfo = safe(cf, "Total Cash From Operating Activities", current)
-        score = 1 if cfo > 0 else 0
-        total_score += score
-        profitability.append({"criterion": "Cash flow positif", "score": score, "detail": f"CFO={cfo:.2f}"})
+        if cfo == 0:
+            cfo = StockDataService.safe_float(info.get("freeCashflow"))
 
-        # 3. ROA improving
-        roa_prev = safe(is_, "Net Income", prev) / max(safe(bs, "Total Assets", prev), 1)
-        score = 1 if roa_curr > roa_prev else 0
-        total_score += score
-        profitability.append({"criterion": "ROA improving", "score": score, "detail": f"Prev={roa_prev:.2f} Curr={roa_curr:.2f}"})
+        if cfo > 0:
+            score += 1
+            profitability.append({"criterion": "Cash Flow positif", "score": 1, "detail": "Cash flow positif"})
+        else:
+            profitability.append({"criterion": "Cash Flow positif", "score": 0, "detail": "Cash flow négatif ou non disponible"})
 
-        # 4. CFO > Net Income
-        ni = safe(is_, "Net Income", current)
-        score = 1 if cfo > ni else 0
-        total_score += score
-        profitability.append({"criterion": "CFO > Net Income", "score": score, "detail": f"CFO={cfo:.2f} NI={ni:.2f}"})
+        # Amélioration ROA
+        roa_prev = safe(is_, "Net Income", prev) / safe(bs, "Total Assets", prev)
+        if roa_curr > roa_prev:
+            score += 1
+            profitability.append({"criterion": "ROA en amélioration", "score": 1, "detail": "ROA en hausse"})
+        else:
+            profitability.append({"criterion": "ROA en amélioration", "score": 0, "detail": "ROA stable ou en baisse"})
 
-        # 5. Leverage decreased
-        leverage_curr = safe(bs, "Long Term Debt", current) / max(safe(bs, "Total Assets", current), 1)
-        leverage_prev = safe(bs, "Long Term Debt", prev) / max(safe(bs, "Total Assets", prev), 1)
-        score = 1 if leverage_curr < leverage_prev else 0
-        total_score += score
-        leverage.append({"criterion": "Leverage decreased", "score": score, "detail": f"Prev={leverage_prev:.2f} Curr={leverage_curr:.2f}"})
+        # CFO > Net Income
+        net_income_curr = safe(is_, "Net Income", current)
+        if cfo > net_income_curr:
+            score += 1
+            profitability.append({"criterion": "CFO > Net Income", "score": 1, "detail": "Cash flow supérieur au bénéfice net"})
+        else:
+            profitability.append({"criterion": "CFO > Net Income", "score": 0, "detail": "Cash flow inférieur au bénéfice net"})
 
-        # 6. Current ratio improved
-        curr_ratio_curr = safe(bs, "Total Current Assets", current) / max(safe(bs, "Total Current Liabilities", current), 1)
-        curr_ratio_prev = safe(bs, "Total Current Assets", prev) / max(safe(bs, "Total Current Liabilities", prev), 1)
-        score = 1 if curr_ratio_curr > curr_ratio_prev else 0
-        total_score += score
-        leverage.append({"criterion": "Current ratio improved", "score": score, "detail": f"Prev={curr_ratio_prev:.2f} Curr={curr_ratio_curr:.2f}"})
+        # === 2. Levier / Liquidité ===
 
-        # 7. No new shares
+        # Diminution du leverage
+        leverage_curr = safe(bs, "Long Term Debt", current) / safe(bs, "Total Assets", current)
+        leverage_prev = safe(bs, "Long Term Debt", prev) / safe(bs, "Total Assets", prev)
+        if leverage_curr < leverage_prev:
+            score += 1
+            leverage_list.append({"criterion": "Leverage diminué", "score": 1, "detail": "Endettement en baisse"})
+        else:
+            leverage_list.append({"criterion": "Leverage diminué", "score": 0, "detail": "Endettement stable ou en hausse"})
+
+        # Amélioration Current Ratio
+        curr_ratio_curr = safe(bs, "Total Current Assets", current) / safe(bs, "Total Current Liabilities", current)
+        curr_ratio_prev = safe(bs, "Total Current Assets", prev) / safe(bs, "Total Current Liabilities", prev)
+        if curr_ratio_curr > curr_ratio_prev:
+            score += 1
+            leverage_list.append({"criterion": "Current Ratio amélioré", "score": 1, "detail": "Liquidité en amélioration"})
+        else:
+            leverage_list.append({"criterion": "Current Ratio amélioré", "score": 0, "detail": "Liquidité stable ou en baisse"})
+
+        # Pas d’émission d’actions
         shares_curr = safe(bs, "Ordinary Shares Number", current)
         shares_prev = safe(bs, "Ordinary Shares Number", prev)
-        score = 1 if shares_curr <= shares_prev else 0
-        total_score += score
-        leverage.append({"criterion": "No new shares", "score": score, "detail": f"Prev={shares_prev} Curr={shares_curr}"})
-
-        # 8. Gross margin improved
-        gm_curr = safe(is_, "Gross Profit", current) / max(safe(is_, "Total Revenue", current), 1)
-        gm_prev = safe(is_, "Gross Profit", prev) / max(safe(is_, "Total Revenue", prev), 1)
-        score = 1 if gm_curr > gm_prev else 0
-        total_score += score
-        operating.append({"criterion": "Gross margin improved", "score": score, "detail": f"Prev={gm_prev:.2f} Curr={gm_curr:.2f}"})
-
-        # 9. Asset turnover improved
-        at_curr = safe(is_, "Total Revenue", current) / max(safe(bs, "Total Assets", current), 1)
-        at_prev = safe(is_, "Total Revenue", prev) / max(safe(bs, "Total Assets", prev), 1)
-        score = 1 if at_curr > at_prev else 0
-        total_score += score
-        operating.append({"criterion": "Asset turnover improved", "score": score, "detail": f"Prev={at_prev:.2f} Curr={at_curr:.2f}"})
-
-        # Interprétation
-        if total_score >= 7:
-            interp = "Entreprise solide. Très bonne gestion"
-        elif total_score >= 4:
-            interp = "Entreprise avec du potentiel. Bien analyser avant d'investir"
+        if shares_curr <= shares_prev:
+            score += 1
+            leverage_list.append({"criterion": "Pas d’émission d’actions", "score": 1, "detail": "Pas de nouvelles actions émises"})
         else:
-            interp = "A fuir"
+            leverage_list.append({"criterion": "Pas d’émission d’actions", "score": 0, "detail": "Nouvelles actions émises"})
+
+        # === 3. Efficacité opérationnelle ===
+
+        # Amélioration marge brute
+        gross_margin_curr = safe(is_, "Gross Profit", current) / safe(is_, "Total Revenue", current)
+        gross_margin_prev = safe(is_, "Gross Profit", prev) / safe(is_, "Total Revenue", prev)
+        if gross_margin_curr > gross_margin_prev:
+            score += 1
+            operating_list.append({"criterion": "Marge brute améliorée", "score": 1, "detail": "Marge brute en hausse"})
+        else:
+            operating_list.append({"criterion": "Marge brute améliorée", "score": 0, "detail": "Marge brute stable ou en baisse"})
+
+        # Amélioration turnover (efficacité des actifs)
+        asset_turn_curr = safe(is_, "Total Revenue", current) / safe(bs, "Total Assets", current)
+        asset_turn_prev = safe(is_, "Total Revenue", prev) / safe(bs, "Total Assets", prev)
+        if asset_turn_curr > asset_turn_prev:
+            score += 1
+            operating_list.append({"criterion": "Turnover amélioré", "score": 1, "detail": "Rotation des actifs en hausse"})
+        else:
+            operating_list.append({"criterion": "Turnover amélioré", "score": 0, "detail": "Rotation des actifs stable ou en baisse"})
+
+        # === Interprétation ===
+        if score >= 7:
+            interpretation = "EXCELLENT"
+        elif score >= 4:
+            interpretation = "MOYEN"
+        else:
+            interpretation = "FAIBLE"
 
         return {
-            "total_score": total_score,
+            "total_score": score,
             "profitability": profitability,
-            "leverage": leverage,
-            "operating": operating,
-            "interpretation": interp
+            "leverage": leverage_list,
+            "operating": operating_list,
+            "interpretation": interpretation
         }
+
 
 # === Routes API ===
 @app.get("/")
