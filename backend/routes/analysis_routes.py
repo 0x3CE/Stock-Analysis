@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from yfinance import Search as YFSearch
-from ..services.stock_service import StockDataService
+from services.stock_service import StockDataService
 import yfinance as yf
 
 router = APIRouter(prefix="/api")
