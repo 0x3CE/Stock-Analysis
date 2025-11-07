@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from yfinance import Search as YFSearch
-from services.stock_service import StockDataService
 import yfinance as yf
+from services.stock_service import StockDataService
 
 router = APIRouter(prefix="/api")
 
@@ -10,6 +10,7 @@ async def search_stocks(query: str):
     query = query.strip()
     if not query:
         return {"results": []}
+
     try:
         search_obj = YFSearch(query, max_results=8)
         res = search_obj.search()
@@ -44,12 +45,18 @@ async def analyze_stock(input_str: str):
         symbol = results[0].get("symbol")
         stock = StockDataService.fetch_stock_info(symbol)
 
-    # Extraction
-    kpis = StockDataService.extract_kpis(stock)
-    historical = StockDataService.get_historical_prices(stock, period="1y")
-    dividend_history = StockDataService.get_dividend_history(stock)
-    profit_margin_history = StockDataService.get_profit_and_margin_history(stock)
-    piotroski = StockDataService.compute_piotroski_fscore(stock)
+    # Construction sécurisée des dicts
+    try: kpis = StockDataService.extract_kpis(stock)
+    except Exception: kpis = {}
+    try: historical = StockDataService.get_historical_prices(stock)
+    except Exception: historical = []
+    try: dividend_history = StockDataService.get_dividend_history(stock)
+    except Exception: dividend_history = []
+    try: profit_margin_history = StockDataService.get_profit_and_margin_history(stock)
+    except Exception: profit_margin_history = []
+    try: piotroski = StockDataService.compute_piotroski_fscore(stock)
+    except Exception:
+        piotroski = {"total_score": 0, "profitability": [], "leverage": [], "operating": [], "interpretation": "N/A"}
 
     try:
         name = stock.info.get("longName") or stock.info.get("shortName") or symbol
