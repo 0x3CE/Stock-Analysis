@@ -19,8 +19,8 @@ pip install fastapi uvicorn yfinance pandas python-dotenv numpy
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .core.config import settings
-from .routes import analysis_routes, health_routes
+from core.config import settings
+from routes import analysis_routes, health_routes
 
 # === Configuration FastAPI ===
 app = FastAPI(
