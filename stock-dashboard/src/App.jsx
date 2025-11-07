@@ -488,7 +488,7 @@ const StockDashboard = () => {
 
         {/* Footer avec info API */}
         <div className="mt-8 text-center text-slate-500 text-sm">
-          Données fournies par l'API Python Backend (FastAPI + yfinance)
+          Données fournies par Yahoo Finance & yfinance module.
         </div>
       </div>
     </div>

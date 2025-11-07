@@ -1,7 +1,7 @@
 import yfinance as yf
 
 # Remplace "IREN" par n'importe quel ticker pour tester
-ticker_symbol = "NVDA"
+ticker_symbol = "TTWO"
 
 # Crée l'objet Ticker
 stock = yf.Ticker(ticker_symbol)
@@ -14,3 +14,12 @@ financials = stock.financials
 
 print("=== INFO ===")
 print(info)
+
+print("\n=== FAST INFO ===")
+print(fast_info)
+
+print("\n=== HISTORIQUE 5J ===")
+print(history)
+
+print("\n=== FINANCIALS ===")
+print(financials)
