@@ -3,7 +3,7 @@ from datetime import datetime
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from ..core.utils import safe_float
+from core.utils import safe_float
 
 
 # === Service pour les données yfinance ===
