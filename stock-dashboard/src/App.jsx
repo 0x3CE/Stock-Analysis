@@ -1,497 +1,372 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, Award } from 'lucide-react';
-import { LineChart,Line,BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+/**
+ * App.jsx — Shell principal du StockDashboard.
+ *
+ * Responsabilités :
+ * - Barre de recherche avec autocomplete
+ * - En-tête société (nom, prix, variation)
+ * - Navigation par onglets
+ * - Routing vers les onglets : Overview, Financials, Piotroski, Buffett
+ *
+ * Chaque onglet est isolé dans src/tabs/.
+ * Les composants réutilisables sont dans src/components/ui/.
+ * Les utilitaires sont dans src/utils/formatters.js.
+ */
 
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon } from 'lucide-react';
 
-// Configuration de l'URL de l'API backend
-//const API_BASE_URL = 'http://localhost:8000';
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
-console.log("API_URL:", API_URL);
+import { useIsMobile }       from './hooks/Useismobile';
+import { Badge }             from './components/ui/Badge';
+import { SECTOR_COLORS, getCurrencySymbol } from './utils/Formatters';
+
+import OverviewTab   from './tabs/OverviewTab';
+import FinancialsTab from './tabs/FinancialsTab';
+import PiotroskiTab  from './tabs/PiotroskiTab';
+import BuffettTab    from './tabs/BuffettTab';
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const SEARCH_DEBOUNCE_MS = 350;
+
+// ---------------------------------------------------------------------------
+// Skeleton Loader
+// ---------------------------------------------------------------------------
+
+const SkeletonBlock = ({ style = {} }) => (
+  <div style={{
+    background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
+    animation: 'pulse 1.5s ease infinite', ...style,
+  }} />
+);
+
+const SkeletonDashboard = () => (
+  <div style={{ minHeight: '100vh', background: '#0b0f1a', padding: '32px 24px' }}>
+    <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <SkeletonBlock style={{ height: '48px', width: '320px' }} />
+      <SkeletonBlock style={{ height: '100px', width: '400px' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        {[...Array(4)].map((_, i) => <SkeletonBlock key={i} style={{ height: '120px' }} />)}
+      </div>
+      <SkeletonBlock style={{ height: '300px' }} />
+    </div>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// TabBar
+// ---------------------------------------------------------------------------
+
+const TABS = [
+  { id: 'overview',   label: "Vue d'ensemble", icon: Layers },
+  { id: 'financials', label: 'Financiers',     icon: BarChart3 },
+  { id: 'piotroski',  label: 'Piotroski',      icon: Award },
+  { id: 'buffett',    label: 'Buffett',         icon: BuffettIcon },
+];
+
+const TabBar = ({ active, onChange }) => (
+  <div style={{
+    display: 'flex', gap: '4px', background: '#0d1117',
+    borderRadius: '14px', padding: '5px',
+    border: '1px solid #1e293b', marginBottom: '32px',
+  }}>
+    {TABS.map(({ id, label, icon: Icon }) => {
+      const isActive = active === id;
+      return (
+        <button key={id} onClick={() => onChange(id)} style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+          padding: '10px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+          fontFamily: 'DM Sans, sans-serif', fontSize: '13px', fontWeight: '600',
+          transition: 'all 0.2s',
+          background: isActive ? '#2563eb' : 'transparent',
+          color:      isActive ? '#fff'     : '#64748b',
+          boxShadow:  isActive ? '0 4px 14px rgba(37,99,235,0.3)' : 'none',
+        }}>
+          <Icon size={14} />
+          <span>{label}</span>
+        </button>
+      );
+    })}
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Composant principal
+// ---------------------------------------------------------------------------
 
 const StockDashboard = () => {
-  const [ticker, setTicker] = useState('AAPL');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
-  const [suggestions, setSuggestions] = useState([]);
-  const debounceRef = useRef(null);
+  const [ticker, setTicker]                         = useState('AAPL');
+  const [loading, setLoading]                       = useState(false);
+  const [error, setError]                           = useState(null);
+  const [analysis, setAnalysis]                     = useState(null);
+  const [suggestions, setSuggestions]               = useState([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [activeTab, setActiveTab]                   = useState('overview');
 
+  const debounceRef = useRef(null);
+  const isMobile    = useIsMobile();
+  const chartHeight = isMobile ? 200 : 280;
 
-  // Récupération des suggestions
-  const fetchSuggestions = async (query) => {
-    if (!query || query.trim().length < 1) {
-      setSuggestions([]);
-      return;
-    }
+  // ── Appels API ────────────────────────────────────────────────────────────
+
+  const fetchSuggestions = useCallback(async (query) => {
+    if (!query || query.trim().length < 1) { setSuggestions([]); return; }
     setSuggestionsLoading(true);
     try {
       const resp = await fetch(`${API_URL}/api/search/${encodeURIComponent(query)}`);
-      if (!resp.ok) {
-        // si 404 -> pas de suggestions
-        if (resp.status === 404) {
-          setSuggestions([]);
-          setSuggestionsLoading(false);
-          return;
-        }
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(errBody.detail || 'Erreur recherche');
-      }
-      const data = await resp.json();
-      setSuggestions(data.results || []);
-    } catch (err) {
-      console.error("Erreur de recherche :", err);
-      setSuggestions([]);
-    } finally {
-      setSuggestionsLoading(false);
-    }
-  };
+      if (resp.status === 404) { setSuggestions([]); return; }
+      if (!resp.ok) throw new Error('Erreur recherche');
+      setSuggestions((await resp.json()).results || []);
+    } catch { setSuggestions([]); }
+    finally { setSuggestionsLoading(false); }
+  }, []);
 
-  const fetchAnalysis = async (symbol) => {
-    setLoading(true);
-    setError(null);
-
+  const fetchAnalysis = useCallback(async (symbol) => {
+    setLoading(true); setError(null); setSuggestions([]);
     try {
-      const response = await fetch(`${API_URL}/api/analyze/${encodeURIComponent(symbol)}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Erreur lors de la récupération des données');
+      const resp = await fetch(`${API_URL}/api/analyze/${encodeURIComponent(symbol)}`);
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.detail || 'Erreur récupération');
       }
-
-      const data = await response.json();
-      setAnalysis(data);
-      setSuggestions([]);
-
+      setAnalysis(await resp.json());
+      setActiveTab('overview');
     } catch (err) {
       setError(err.message);
       setAnalysis(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Chargement initial
   useEffect(() => {
     fetchAnalysis(ticker);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAnalyze = () => {
-    if (ticker.trim()) {
-      fetchAnalysis(ticker.trim());
-    }
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const handleTickerChange = (e) => {
+    const value = e.target.value;
+    setTicker(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), SEARCH_DEBOUNCE_MS);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleAnalyze();
-    }
+  const handleAnalyze    = ()  => { if (ticker.trim()) fetchAnalysis(ticker.trim()); };
+  const handleKeyDown    = (e) => { if (e.key === 'Enter') handleAnalyze(); };
+  const handleSuggestion = (e, symbol) => {
+    e.preventDefault();
+    setTicker(symbol);
+    setSuggestions([]);
+    fetchAnalysis(symbol);
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 7) return 'text-green-400';
-    if (score >= 4) return 'text-yellow-400';
-    return 'text-red-400';
-  };
+  // ── États spéciaux ───────────────────────────────────────────────────────
 
-  const getScoreLabel = (score) => {
-    if (score >= 7) return 'EXCELLENT';
-    if (score >= 4) return 'MOYEN';
-    return 'FAIBLE';
-  };
+  if (loading) return <SkeletonDashboard />;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-        <div className="text-center">
-          <div className="text-white text-2xl mb-4">Analyse en cours...</div>
-          <div className="animate-pulse text-blue-400">Récupération des données depuis l'API Python</div>
+  if (error) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', background: '#0b0f1a' }}>
+      <div style={{
+        background: 'rgba(127,29,29,0.3)', border: '1px solid rgba(239,68,68,0.3)',
+        borderRadius: '16px', padding: '40px', maxWidth: '400px', textAlign: 'center',
+      }}>
+        <div style={{ color: '#f87171', fontSize: '18px', fontWeight: '700',
+          fontFamily: 'Syne, sans-serif', marginBottom: '10px' }}>
+          Erreur de chargement
         </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-        <div className="bg-red-900 border border-red-500 rounded-lg p-8 max-w-md">
-          <div className="text-red-400 text-xl font-bold mb-2">Erreur</div>
-          <div className="text-red-300">{error}</div>
-          <button
-            onClick={() => setError(null)}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Réessayer
-          </button>
+        <div style={{ color: 'rgba(248,113,113,0.7)', fontSize: '14px',
+          marginBottom: '24px', fontFamily: 'DM Sans, sans-serif' }}>
+          {error}
         </div>
-      </div>
-    );
-  }
-
-  if (!analysis) return null;
-
-  const { kpis, historical_data, piotroski_score, name, dividend_history, profit_margin_history } = analysis;
-  const lastMonthData = historical_data.slice(-30);
-  console.log("Données des dividendes dans le composant :", analysis?.dividend_history);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
-      <div className="max-w-7xl mx-auto">
-
-        <div className="search-container mb-8 relative">
-          <div className="flex gap-4">
-            <div className="relative w-full">
-              <input
-                type="text"
-                value={ticker}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setTicker(value);
-                  if (debounceRef.current) clearTimeout(debounceRef.current);
-                  debounceRef.current = setTimeout(() => fetchSuggestions(value), 350);
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="Nom ou Ticker (ex: Apple ou AAPL)"
-                className="px-4 py-2 w-full bg-slate-800 text-white border border-slate-700 rounded-lg focus:outline-none focus:border-blue-500 text-lg"
-              />
-              {/* Suggestions */}
-              { (suggestions.length > 0 || suggestionsLoading) && (
-                <div className="absolute z-50 bg-slate-800 border border-slate-700 rounded-lg mt-1 w-full max-h-56 overflow-y-auto shadow-lg">
-                  {suggestionsLoading && (
-                    <div className="px-4 py-2 text-slate-300">Chargement...</div>
-                  )}
-                  {suggestions.map((s, idx) => (
-                    <div
-                      key={idx}
-                      onMouseDown={(ev) => {
-                        ev.preventDefault();
-                        setTicker(s.symbol);
-                        setSuggestions([]);
-                        fetchAnalysis(s.symbol);
-                      }}
-                      className="px-4 py-2 cursor-pointer hover:bg-slate-700 text-white transition-colors"
-                    >
-                      <span className="font-semibold text-blue-400">{s.symbol}</span>
-                      <span className="text-slate-300"> — {s.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={handleAnalyze}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-            >
-              Analyser
-            </button>
-          </div>
-        </div>
-        {/* En-tête avec nom et prix */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">{name}</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-5xl font-bold text-white">${kpis.current_price}</span>
-            <span className={`text-2xl font-semibold flex items-center gap-2 ${parseFloat(kpis.price_change) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {parseFloat(kpis.price_change) >= 0 ? <TrendingUp /> : <TrendingDown />}
-              {kpis.price_change}%
-            </span>
-          </div>
-        </div>
-
-        {/* Grille de KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400">Market Cap</span>
-              <DollarSign className="text-blue-400" size={20} />
-            </div>
-            <div className="text-2xl font-bold text-white">${kpis.market_cap}B</div>
-          </div>
-
-
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400">P/E Ratio</span>
-              <BarChart3 className="text-purple-400" size={20} />
-            </div>
-            <div className="text-2xl font-bold text-white">{kpis.pe_ratio || 'N/A'}</div>
-          </div>
-
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400">Dividend Yield</span>
-              <Activity className="text-green-400" size={20} />
-            </div>
-            <div className="text-2xl font-bold text-white">{kpis.dividend_yield ? `${kpis.dividend_yield}%` : 'N/A'}</div>
-          </div>
-
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-slate-400">Volume (M)</span>
-              <Activity className="text-orange-400" size={20} />
-            </div>
-            <div className="text-2xl font-bold text-white">{kpis.volume}M</div>
-          </div>
-        </div>
-
-        {/* Graphique et métriques */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          
-          {/* Graphique d'évolution du prix */}
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-4">Évolution du Prix (30j)</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={lastMonthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="date" stroke="#9CA3AF" tick={{fontSize: 12}} />
-                <YAxis 
-                  stroke="#9CA3AF" 
-                  tick={{ fontSize: 14 }} 
-                  domain={['dataMin - 5', 'dataMax + 5']}
-                  tickFormatter={(value) => `$${value.toFixed(2)}`} />
-                <Tooltip 
-                  contentStyle={{backgroundColor: '#1e293b', border: '1px solid #475569'}}
-                  labelStyle={{color: '#fff'}}
-                  formatter={(value) => [`$${value}`, "Price"]}
-                />
-                <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-4">Évolution des Dividendes (5 ans)</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart
-                data={[...analysis.dividend_history].sort((a, b) => a.year.localeCompare(b.year))}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis
-                  dataKey="year"
-                  stroke="#9CA3AF"
-                  tick={{ fontSize: 12 }} 
-                />
-                <YAxis
-                  stroke="#9CA3AF"
-                  tick={{ fontSize: 14 }}
-                  domain={[
-                    (dataMin) => Math.max(0, dataMin - 0.05),  // Début légèrement en dessous de la valeur minimale
-                    (dataMax) => dataMax + 0.05               // Fin légèrement au-dessus de la valeur maximale
-                  ]}
-                  tickFormatter={(value) => `$${value.toFixed(2)}`}  // Affiche 2 décimales
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#fff' }}
-                  formatter={(value) => [`$${value}`, "Dividende"]}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="amount"
-                  stroke="#10b981"
-                  strokeWidth={1.5}
-                  dot={{
-                    r: 3,  // Réduit le rayon des points (3px au lieu de 4px ou 6px)
-                    fill: "#fff",  // Centre des points en blanc pour plus de visibilité
-                    stroke: "#10b981",  // Bordure des points en vert
-                    strokeWidth: 1.5  // Épaisseur de la bordure des points
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">Évolution du Bénéfice Net (5 ans)</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart
-                data={[...analysis.profit_margin_history].sort((a, b) => a.year.localeCompare(b.year))}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="year" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-                <YAxis
-                  stroke="#9CA3AF"
-                  tick={{ fontSize: 14 }}
-                  tickFormatter={(v) => `$${v}B`}
-                  domain={['dataMin - 2', 'dataMax + 2']}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  labelStyle={{ color: '#fff' }}
-                  formatter={(value) => [`$${value}B`, "Bénéfice net"]}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="net_income"
-                  stroke="#f97316"
-                  strokeWidth={1.5}
-                  dot={{ r: 3, fill: "#fff", stroke: "#f97316", strokeWidth: 1.5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h2 className="text-xl font-bold text-white mb-4">Marge Nette (5 ans)</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart
-              data={[...analysis.profit_margin_history].sort((a, b) => a.year.localeCompare(b.year))}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="year" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-              <YAxis
-                stroke="#9CA3AF"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(v) => `${v}%`}
-                domain={['auto', 'auto']}
-              />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                labelStyle={{ color: '#fff' }}
-                formatter={(value) => [`${value}%`, "Marge nette"]}
-              />
-              <Line
-                type="monotone"
-                dataKey="margin"
-                stroke="#22c55e"
-                strokeWidth={1.5}
-                dot={{ r: 3, fill: "#fff", stroke: "#22c55e", strokeWidth: 1.5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
-        {/* Métriques financières détaillées */}
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-            <h2 className="text-xl font-bold text-white mb-4">Métriques Financières</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-slate-400">52W High : </span>
-                <span className="text-white font-semibold">&nbsp;${kpis.high_52w || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">52W Low : </span>
-                <span className="text-white font-semibold">&nbsp;${kpis.low_52w || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Beta : </span>
-                <span className="text-white font-semibold">&nbsp;{kpis.beta || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">EPS : </span>
-                <span className="text-white font-semibold">&nbsp;${kpis.eps || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">ROE : </span>
-                <span className="text-white font-semibold">&nbsp;{kpis.roe ? `${kpis.roe}%` : 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Debt/Equity : </span>
-                <span className="text-white font-semibold">&nbsp;{kpis.debt_to_equity || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Current Ratio : </span>
-                <span className="text-white font-semibold">&nbsp;{kpis.current_ratio || 'N/A'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Profit Margin : </span>
-                <span className="text-white font-semibold">{kpis.profit_margin ? `${kpis.profit_margin}%` : 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Section Piotroski F-Score */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-700 rounded-lg p-8 border-2 border-blue-500">
-          
-          {/* En-tête avec score total */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Award className="text-yellow-400" size={32} />
-              <h2 className="text-2xl font-bold text-white">Analyse Piotroski F-Score</h2>
-            </div>
-            <div className="text-right">
-              <div className={`text-8xl font-bold ${getScoreColor(piotroski_score.total_score)}`}>
-                &nbsp; {piotroski_score.total_score}/9 {getScoreLabel(piotroski_score.total_score)}
-              </div>
-            </div>
-          </div>
-
-          {/* Grille des 3 catégories de critères */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Rentabilité */}
-            <div>
-              <h3 className="text-lg font-bold text-blue-400 mb-4">Rentabilité</h3>
-              <div className="space-y-3">
-                {piotroski_score.profitability.map((item, idx) => (
-                  <div key={idx} className="bg-slate-900 rounded p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-300 text-sm">{item.criterion}</span>
-                      <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        &nbsp; : {item.score}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500">{item.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Levier / Liquidité */}
-            <div>
-              <h3 className="text-lg font-bold text-purple-400 mb-4">Levier / Liquidité</h3>
-              <div className="space-y-3">
-                {piotroski_score.leverage.map((item, idx) => (
-                  <div key={idx} className="bg-slate-900 rounded p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-300 text-sm">{item.criterion}</span>
-                      <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        &nbsp; : {item.score}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500">{item.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Efficacité Opérationnelle */}
-            <div>
-              <h3 className="text-lg font-bold text-green-400 mb-4">Efficacité Opérationnelle</h3>
-              <div className="space-y-3">
-                {piotroski_score.operating.map((item, idx) => (
-                  <div key={idx} className="bg-slate-900 rounded p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-slate-300 text-sm">{item.criterion}</span>
-                      <span className={`font-bold ${item.score === 1 ? 'text-green-400' : 'text-red-400'}`}>
-                        &nbsp; : {item.score}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500">{item.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Interprétation du score */}
-          <div className="mt-6 p-4 bg-slate-900 rounded-lg">
-            <h4 className="text-white font-semibold mb-2">Interprétation :</h4>
-            <p className="text-slate-300 text-sm">{piotroski_score.interpretation}</p>
-          </div>
-        </div>
-
-        {/* Footer avec info API */}
-        <div className="mt-8 text-center text-slate-500 text-sm">
-          Données fournies par Yahoo Finance & yfinance module.
-        </div>
+        <button onClick={() => { setError(null); fetchAnalysis(ticker); }}
+          style={{
+            padding: '10px 24px', background: '#dc2626', color: '#fff',
+            border: 'none', borderRadius: '10px', cursor: 'pointer',
+            fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
+          }}>
+          Réessayer
+        </button>
       </div>
     </div>
+  );
+
+  // ── Rendu principal ───────────────────────────────────────────────────────
+
+  const kpis          = analysis?.kpis || {};
+  const sector        = analysis?.sector   || null;
+  const market        = analysis?.market   || null;
+  const currency      = analysis?.currency || 'USD';
+  const name          = analysis?.name     || ticker;
+  const pricePositive = parseFloat(kpis.price_change) >= 0;
+  const sectorColor   = SECTOR_COLORS[sector] || '#3b82f6';
+  const currencySymbol = getCurrencySymbol(currency);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0b0f1a !important; }
+        @keyframes cardIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.4; }
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0b0f1a; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+      `}</style>
+
+      <div style={{ minHeight: '100vh', background: '#0b0f1a', color: '#e2e8f0',
+        fontFamily: 'DM Sans, sans-serif' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px' }}>
+
+          {/* ── Barre de recherche ──────────────────────────────── */}
+          <div style={{ position: 'relative', marginBottom: '40px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type="text" value={ticker}
+                  onChange={handleTickerChange} onKeyDown={handleKeyDown}
+                  placeholder="Ticker ou nom de société…"
+                  style={{
+                    width: '100%', padding: '14px 20px',
+                    background: '#0d1117', border: '1px solid #21262d',
+                    borderRadius: '12px', color: '#e2e8f0', fontSize: '14px',
+                    fontFamily: 'DM Mono, monospace', outline: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
+                  onBlur={(e)  => e.target.style.borderColor = '#21262d'}
+                />
+
+                {(suggestions.length > 0 || suggestionsLoading) && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 50,
+                    background: '#0d1117', border: '1px solid #21262d', borderRadius: '12px',
+                    overflow: 'hidden', boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+                  }}>
+                    {suggestionsLoading && (
+                      <div style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>
+                        Recherche…
+                      </div>
+                    )}
+                    {suggestions.map((s, idx) => (
+                      <div key={idx} onMouseDown={(e) => handleSuggestion(e, s.symbol)}
+                        style={{
+                          padding: '12px 16px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: '12px',
+                          borderBottom: '1px solid #161b22', transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#161b22'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                        <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: '700',
+                          color: '#60a5fa', fontSize: '13px', width: '60px', flexShrink: 0 }}>
+                          {s.symbol}
+                        </span>
+                        <span style={{ color: '#94a3b8', fontSize: '13px',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {s.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={handleAnalyze} style={{
+                padding: '14px 28px',
+                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer',
+                fontWeight: '600', fontSize: '14px', fontFamily: 'DM Sans, sans-serif',
+                boxShadow: '0 4px 14px rgba(37,99,235,0.3)', transition: 'transform 0.2s',
+              }}
+                onMouseEnter={(e) => e.target.style.transform = 'translateY(-1px)'}
+                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}>
+                Analyser
+              </button>
+            </div>
+          </div>
+
+          {/* Affichage uniquement si une analyse est chargée */}
+          {analysis && (
+            <>
+              {/* ── En-tête société ──────────────────────────────── */}
+              <div style={{ marginBottom: '32px', animation: 'cardIn 0.4s ease forwards' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                  {sector  && <Badge label={sector}   color={sectorColor} />}
+                  {market  && <Badge label={market}   color="#64748b" />}
+                  <Badge label={currency} color="#6366f1" />
+                </div>
+
+                <h1 style={{
+                  fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: '800',
+                  fontFamily: 'Syne, sans-serif', color: '#f8fafc',
+                  marginBottom: '12px', lineHeight: 1.1,
+                }}>
+                  {name}
+                </h1>
+
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 'clamp(32px, 6vw, 60px)', fontWeight: '700',
+                    fontFamily: 'Syne, sans-serif', color: '#f8fafc' }}>
+                    {currencySymbol}{kpis.current_price}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px',
+                    fontSize: '20px', fontWeight: '600',
+                    color: pricePositive ? '#22c55e' : '#ef4444' }}>
+                    {pricePositive ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                    {pricePositive ? '+' : ''}{kpis.price_change}%
+                  </span>
+                </div>
+              </div>
+
+              {/* ── Navigation ──────────────────────────────────── */}
+              <TabBar active={activeTab} onChange={setActiveTab} />
+
+              {/* ── Onglets ─────────────────────────────────────── */}
+              {activeTab === 'overview' && (
+                <OverviewTab
+                  kpis={kpis}
+                  historical_data={analysis.historical_data}
+                  dividend_history={analysis.dividend_history}
+                  profit_margin_history={analysis.profit_margin_history}
+                  chartHeight={chartHeight}
+                />
+              )}
+              {activeTab === 'financials' && (
+                <FinancialsTab
+                  profit_margin_history={analysis.profit_margin_history}
+                  dividend_history={analysis.dividend_history}
+                  chartHeight={chartHeight}
+                />
+              )}
+              {activeTab === 'piotroski' && (
+                <PiotroskiTab piotroski_score={analysis.piotroski_score} />
+              )}
+              {activeTab === 'buffett' && (
+                <BuffettTab />
+              )}
+            </>
+          )}
+
+          {/* Footer */}
+          <div style={{ marginTop: '48px', paddingBottom: '24px', textAlign: 'center',
+            color: '#1e293b', fontSize: '12px', fontFamily: 'DM Mono, monospace' }}>
+            Données fournies par Yahoo Finance · yfinance · FRED · Banque Mondiale
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 

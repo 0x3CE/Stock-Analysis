@@ -6,7 +6,7 @@ Architecture moderne **Backend Python (FastAPI) + Frontend React** pour l'analys
 
 ## 🏗️ Architecture
 
-```
+```md
 project/
 ├── backend/
 │   ├── main.py              # API FastAPI

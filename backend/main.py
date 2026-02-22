@@ -8,7 +8,7 @@ pip install fastapi uvicorn yfinance pandas python-dotenv numpy
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
-from routes import analysis_routes, health_routes
+from routes import analysis_routes, health_routes, buffet_routes
 
 # === Configuration FastAPI ===
 app = FastAPI(
@@ -29,3 +29,4 @@ app.add_middleware(
 # Enregistrement des routes
 app.include_router(health_routes.router)
 app.include_router(analysis_routes.router)
+app.include_router(buffet_routes.router)
