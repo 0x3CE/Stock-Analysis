@@ -1,12 +1,20 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from yfinance import Search as YFSearch
+from cachetools import TTLCache
 import yfinance as yf
 import math
 import json
+import logging
 from services.stock_service import StockDataService
+from core.config import settings
+from core.limiter import limiter
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
+
+# Cache des analyses : 50 tickers max, TTL 5 minutes
+_analysis_cache: TTLCache = TTLCache(maxsize=50, ttl=300)
 
 
 # ---------------------------------------------------------------------------
@@ -29,13 +37,28 @@ class SafeJSONResponse(JSONResponse):
 
 
 # ---------------------------------------------------------------------------
+# Validation du ticker
+# ---------------------------------------------------------------------------
+
+def _validate_ticker(raw: str) -> str:
+    """Valide et normalise un ticker. Lève HTTPException si invalide."""
+    symbol = raw.strip().upper()
+    if not symbol:
+        raise HTTPException(status_code=400, detail="Ticker vide")
+    if not settings.TICKER_REGEX.match(symbol):
+        raise HTTPException(status_code=400, detail="Ticker invalide")
+    return symbol
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 @router.get("/search/{query}")
-async def search_stocks(query: str):
+@limiter.limit("30/minute")
+async def search_stocks(request: Request, query: str):
     query = query.strip()
-    if not query:
+    if not query or len(query) > 50:
         return {"results": []}
 
     try:
@@ -47,43 +70,56 @@ async def search_stocks(query: str):
             for q in quotes[:5] if q.get("symbol")
         ]
         return {"results": results}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur recherche : {str(e)}")
+    except Exception:
+        logger.exception("Erreur lors de la recherche : %s", query)
+        raise HTTPException(status_code=500, detail="Erreur lors de la recherche")
 
 
 @router.get("/analyze/{input_str}")
-async def analyze_stock(input_str: str):
-    raw = input_str.strip()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Ticker/nom vide")
+@limiter.limit("10/minute")
+async def analyze_stock(request: Request, input_str: str):
+    symbol = _validate_ticker(input_str)
 
-    symbol = raw.upper()
+    if symbol in _analysis_cache:
+        logger.debug("Cache hit pour %s", symbol)
+        return SafeJSONResponse(_analysis_cache[symbol])
+
     try:
         stock = StockDataService.fetch_stock_info(symbol)
     except HTTPException:
         try:
-            results = yf.search(raw)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Erreur recherche : {str(e)}")
+            results = yf.search(input_str.strip())
+        except Exception:
+            logger.exception("Erreur recherche fallback pour : %s", input_str)
+            raise HTTPException(status_code=500, detail="Erreur lors de la recherche")
         if not results:
-            raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{raw}'")
+            raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{symbol}'")
         symbol = results[0].get("symbol")
         stock = StockDataService.fetch_stock_info(symbol)
 
     try: kpis = StockDataService.extract_kpis(stock)
-    except Exception: kpis = {}
+    except Exception:
+        logger.exception("Erreur extraction KPIs pour %s", symbol)
+        kpis = {}
 
     try: historical = StockDataService.get_historical_prices(stock)
-    except Exception: historical = []
+    except Exception:
+        logger.exception("Erreur historique pour %s", symbol)
+        historical = []
 
     try: dividend_history = StockDataService.get_dividend_history(stock)
-    except Exception: dividend_history = []
+    except Exception:
+        logger.exception("Erreur dividendes pour %s", symbol)
+        dividend_history = []
 
     try: profit_margin_history = StockDataService.get_profit_and_margin_history(stock)
-    except Exception: profit_margin_history = []
+    except Exception:
+        logger.exception("Erreur marges pour %s", symbol)
+        profit_margin_history = []
 
     try: piotroski = StockDataService.compute_piotroski_fscore(stock)
     except Exception:
+        logger.exception("Erreur Piotroski pour %s", symbol)
         piotroski = {"total_score": 0, "profitability": [], "leverage": [], "operating": [], "interpretation": "N/A"}
 
     try:
@@ -91,12 +127,14 @@ async def analyze_stock(input_str: str):
     except Exception:
         name = symbol
 
-    return SafeJSONResponse({
-        "ticker":               symbol,
-        "name":                 name,
-        "kpis":                 kpis,
-        "historical_data":      historical,
-        "piotroski_score":      piotroski,
-        "dividend_history":     dividend_history,
+    result = {
+        "ticker":                symbol,
+        "name":                  name,
+        "kpis":                  kpis,
+        "historical_data":       historical,
+        "piotroski_score":       piotroski,
+        "dividend_history":      dividend_history,
         "profit_margin_history": profit_margin_history,
-    })
+    }
+    _analysis_cache[symbol] = result
+    return SafeJSONResponse(result)

@@ -33,8 +33,11 @@ stock-dashboard/dist/
 # 🐍 BACKEND : Python (FastAPI, Flask, Django…)
 # =========================================
 
+backend/**/__pycache__/
 backend/__pycache__/
+backend/**/*.py[cod]
 backend/*.py[cod]
+backend/**/*$py.class
 backend/*$py.class
 backend/*.log
 backend/.pytest_cache/
@@ -109,3 +112,6 @@ coverage.xml
 
 *.env
 secrets.json
+
+
+task/

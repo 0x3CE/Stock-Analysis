@@ -2,14 +2,21 @@
  * Utilitaires de formatage et d'interprétation partagés entre les onglets.
  */
 
+// Seuils Piotroski — doivent correspondre aux constantes backend (stock_service.py)
+export const PIOTROSKI_HIGH = 7;
+export const PIOTROSKI_MID  = 4;
+
+// Délai de debounce pour la recherche (ms)
+export const SEARCH_DEBOUNCE_MS = 350;
+
 /** Trie un tableau d'objets { year } par année croissante. */
 export const sortByYear = (arr) =>
   [...arr].sort((a, b) => a.year.localeCompare(b.year));
 
 /** Retourne couleur et libellé selon le score Piotroski. */
 export const getPiotroskiColor = (score) => {
-  if (score >= 7) return { text: '#22c55e', label: 'SOLIDE' };
-  if (score >= 4) return { text: '#f59e0b', label: 'MOYEN' };
+  if (score >= PIOTROSKI_HIGH) return { text: '#22c55e', label: 'SOLIDE' };
+  if (score >= PIOTROSKI_MID)  return { text: '#f59e0b', label: 'MOYEN' };
   return { text: '#ef4444', label: 'FAIBLE' };
 };
 

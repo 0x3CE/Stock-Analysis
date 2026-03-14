@@ -45,12 +45,6 @@ class ProfitMarginHistory(BaseModel):
     net_income: float
     margin: float
 
-class NewsItem(BaseModel):
-    title: str
-    url: str
-    publisher: Optional[str]
-    published_at: Optional[str]
-
 class StockAnalysis(BaseModel):
     ticker: str
     name: str

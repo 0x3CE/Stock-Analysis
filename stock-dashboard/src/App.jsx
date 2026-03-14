@@ -13,23 +13,25 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon } from 'lucide-react';
+import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon, GitCompare, Star, Download } from 'lucide-react';
 
-import { useIsMobile }       from './hooks/Useismobile';
-import { Badge }             from './components/ui/Badge';
-import { SECTOR_COLORS, getCurrencySymbol } from './utils/Formatters';
+import { useIsMobile }    from './hooks/Useismobile';
+import { useFavorites }   from './hooks/useFavorites';
+import { Badge }          from './components/ui/Badge';
+import { SECTOR_COLORS, getCurrencySymbol, SEARCH_DEBOUNCE_MS } from './utils/Formatters';
+import { exportToCSV }    from './utils/exportUtils';
 
 import OverviewTab   from './tabs/OverviewTab';
 import FinancialsTab from './tabs/FinancialsTab';
 import PiotroskiTab  from './tabs/PiotroskiTab';
 import BuffettTab    from './tabs/BuffettTab';
+import CompareTab    from './tabs/CompareTab';
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const SEARCH_DEBOUNCE_MS = 350;
 
 // ---------------------------------------------------------------------------
 // Skeleton Loader
@@ -64,6 +66,7 @@ const TABS = [
   { id: 'financials', label: 'Financiers',     icon: BarChart3 },
   { id: 'piotroski',  label: 'Piotroski',      icon: Award },
   { id: 'buffett',    label: 'Buffett',         icon: BuffettIcon },
+  { id: 'compare',   label: 'Comparer',        icon: GitCompare },
 ];
 
 const TabBar = ({ active, onChange }) => (
@@ -108,6 +111,7 @@ const StockDashboard = () => {
   const debounceRef = useRef(null);
   const isMobile    = useIsMobile();
   const chartHeight = isMobile ? 200 : 280;
+  const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
 
   // ── Appels API ────────────────────────────────────────────────────────────
 
@@ -141,10 +145,14 @@ const StockDashboard = () => {
     }
   }, []);
 
+  // Chargement initial du ticker par défaut
   useEffect(() => {
     fetchAnalysis(ticker);
+  }, [fetchAnalysis]);
+
+  // Nettoyage du debounce au démontage
+  useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Handlers ─────────────────────────────────────────────────────────────
@@ -209,29 +217,12 @@ const StockDashboard = () => {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0b0f1a !important; }
-        @keyframes cardIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.4; }
-        }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0b0f1a; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-      `}</style>
-
       <div style={{ minHeight: '100vh', background: '#0b0f1a', color: '#e2e8f0',
-        fontFamily: 'DM Sans, sans-serif' }}>
+        fontFamily: 'DM Sans, sans-serif' }} className="app-root">
         <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px' }}>
 
           {/* ── Barre de recherche ──────────────────────────────── */}
-          <div style={{ position: 'relative', marginBottom: '40px' }}>
+          <div style={{ position: 'relative', marginBottom: favorites.length > 0 ? '16px' : '40px' }}>
             <div style={{ display: 'flex', gap: '12px' }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <input
@@ -297,15 +288,61 @@ const StockDashboard = () => {
             </div>
           </div>
 
+          {/* ── Barre de favoris ───────────────────────────────── */}
+          {favorites.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '40px' }}>
+              {favorites.map((fav) => (
+                <button key={fav} onClick={() => { setTicker(fav); fetchAnalysis(fav); }}
+                  style={{
+                    padding: '6px 14px', borderRadius: '8px', border: '1px solid #21262d',
+                    background: analysis?.ticker === fav ? '#1e3a5f' : '#0d1117',
+                    color: analysis?.ticker === fav ? '#60a5fa' : '#64748b',
+                    cursor: 'pointer', fontSize: '12px', fontWeight: '700',
+                    fontFamily: 'DM Mono, monospace', transition: 'all 0.15s',
+                  }}>
+                  ★ {fav}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Affichage uniquement si une analyse est chargée */}
           {analysis && (
             <>
               {/* ── En-tête société ──────────────────────────────── */}
               <div style={{ marginBottom: '32px', animation: 'cardIn 0.4s ease forwards' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
                   {sector  && <Badge label={sector}   color={sectorColor} />}
                   {market  && <Badge label={market}   color="#64748b" />}
                   <Badge label={currency} color="#6366f1" />
+
+                  {/* Bouton favori */}
+                  <button onClick={() => toggleFavorite(analysis.ticker)}
+                    title={isFavorite(analysis.ticker) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                    style={{
+                      marginLeft: '4px', background: 'none', border: '1px solid #1e293b',
+                      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer',
+                      color: isFavorite(analysis.ticker) ? '#f59e0b' : '#334155',
+                      fontSize: '16px', transition: 'all 0.2s', lineHeight: 1,
+                    }}>
+                    {isFavorite(analysis.ticker) ? '★' : '☆'}
+                  </button>
+
+                  {/* Bouton export CSV */}
+                  <button onClick={() => exportToCSV(analysis)}
+                    title="Exporter en CSV"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                      background: 'none', border: '1px solid #1e293b',
+                      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer',
+                      color: '#334155', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                      fontWeight: '600', transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#1e293b'}>
+                    <Download size={12} />
+                    CSV
+                  </button>
                 </div>
 
                 <h1 style={{
@@ -355,6 +392,9 @@ const StockDashboard = () => {
               )}
               {activeTab === 'buffett' && (
                 <BuffettTab />
+              )}
+              {activeTab === 'compare' && (
+                <CompareTab mainAnalysis={analysis} />
               )}
             </>
           )}

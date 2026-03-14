@@ -9,9 +9,13 @@ Aucune clé API requise.
 """
 
 import asyncio
+import logging
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from core.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -100,7 +104,8 @@ COUNTRIES = [
 ]
 
 @router.get("/buffett-indicator")
-async def get_buffett_indicator():
+@limiter.limit("20/minute")
+async def get_buffett_indicator(request: Request):
     """
     Retourne le Buffett Indicator pour les 4 marchés configurés.
     Les erreurs par pays sont isolées — un pays en échec ne bloque pas les autres.
@@ -111,9 +116,12 @@ async def get_buffett_indicator():
             return_exceptions=True,
         )
 
-    countries = [
-        {"error": str(r)} if isinstance(r, Exception) else r
-        for r in results
-    ]
+    countries = []
+    for r in results:
+        if isinstance(r, Exception):
+            logger.exception("Erreur Buffett Indicator : %s", r)
+            countries.append({"error": "Données indisponibles"})
+        else:
+            countries.append(r)
 
     return JSONResponse({"countries": countries})
