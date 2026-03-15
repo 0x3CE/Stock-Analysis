@@ -13,7 +13,7 @@ export const PiotroskiGauge = ({ score, maxScore = 9 }) => {
 
   return (
     <div className={styles.wrapper}>
-      <svg width="176" height="108" viewBox="0 0 176 108">
+      <svg width="100%" viewBox="0 0 176 108">
         <path
           d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
           fill="none" stroke="#1e293b" strokeWidth={10} strokeLinecap="round"

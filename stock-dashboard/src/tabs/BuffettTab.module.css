@@ -341,3 +341,92 @@
   flex-direction: column;
   justify-content: center;
 }
+
+/* SVG gauge responsive wrapper */
+.gaugeWrap {
+  width: 100%;
+  max-width: 200px;
+  margin: 0 auto;
+}
+
+.gaugeWrap svg {
+  width: 100%;
+  height: auto;
+}
+
+@media (max-width: 1024px) {
+  .card,
+  .cardAnimated {
+    padding: 20px;
+  }
+
+  .countryCard {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .layout {
+    gap: 16px;
+  }
+
+  .card,
+  .cardAnimated {
+    padding: 16px;
+  }
+
+  .headerTitle {
+    font-size: 17px;
+  }
+
+  .headerDesc {
+    font-size: 12px;
+  }
+
+  .countriesGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .countryCard {
+    padding: 14px;
+  }
+
+  .countryFlag {
+    font-size: 22px;
+  }
+
+  .countryRatio {
+    font-size: 20px;
+  }
+
+  .countryName {
+    font-size: 12px;
+  }
+
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .detailGaugeTitle {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .interpretation {
+    padding: 10px;
+  }
+
+  .countryStats {
+    gap: 12px;
+  }
+
+  .compareRatio {
+    width: 40px;
+    font-size: 11px;
+  }
+
+  .errorCard {
+    padding: 32px 16px;
+  }
+}

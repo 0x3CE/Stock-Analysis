@@ -290,6 +290,75 @@
   font-family: var(--font-sans);
 }
 
+/* ── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .card {
+    padding: 20px;
+  }
+
+  .emptyCard {
+    padding: 36px;
+  }
+}
+
+@media (max-width: 640px) {
+  .layout {
+    gap: 16px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .sectionTitle,
+  .tableTitle {
+    font-size: 15px;
+  }
+
+  .inputRow {
+    flex-direction: column;
+  }
+
+  .addBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .thLabel {
+    width: 110px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .th,
+  .thMain {
+    padding: 8px 10px;
+  }
+
+  .tdLabel,
+  .tdPiotroskiLabel {
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+
+  .td,
+  .tdMain,
+  .tdPiotroski,
+  .tdPiotroskiMain {
+    padding: 10px 10px;
+  }
+
+  .cellValue,
+  .piotroskiScore {
+    font-size: 12px;
+  }
+
+  .emptyCard {
+    padding: 32px 16px;
+  }
+}
+
 /* ── État vide ───────────────────────────────────────────── */
 
 .emptyCard {

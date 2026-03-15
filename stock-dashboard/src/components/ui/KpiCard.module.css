@@ -51,3 +51,15 @@
 .sparkline {
   margin-top: auto;
 }
+
+@media (max-width: 640px) {
+  .card {
+    padding: 16px;
+    height: auto;
+    min-height: 100px;
+  }
+
+  .value {
+    font-size: 20px;
+  }
+}

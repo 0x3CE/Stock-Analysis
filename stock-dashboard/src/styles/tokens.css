@@ -52,4 +52,28 @@
   --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-drop:   0 16px 40px rgba(0, 0, 0, 0.6);
   --shadow-accent: 0 4px 14px rgba(37, 99, 235, 0.3);
+
+  /* ── Breakpoints (pour usage dans JS si nécessaire) ────── */
+  --bp-mobile:  640px;
+  --bp-tablet: 1024px;
+
+  /* ── Espacements responsives ───────────────────────────── */
+  --card-padding:      24px;
+  --container-padding: 32px 24px;
+  --section-gap:       20px;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --card-padding:      20px;
+    --container-padding: 24px 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --card-padding:      16px;
+    --container-padding: 20px 16px;
+    --section-gap:       16px;
+  }
 }

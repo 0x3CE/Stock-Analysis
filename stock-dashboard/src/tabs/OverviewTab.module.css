@@ -42,3 +42,29 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0 40px;
 }
+
+@media (max-width: 1024px) {
+  .card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .cardTitle {
+    font-size: 15px;
+  }
+
+  .metricsGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

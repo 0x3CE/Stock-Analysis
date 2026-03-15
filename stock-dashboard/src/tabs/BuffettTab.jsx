@@ -17,8 +17,8 @@ const BuffettGauge = ({ ratio, color }) => {
   const thresholdMarkers = [75, 100, 125, 150];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <svg width="200" height="120" viewBox="0 0 200 120">
+    <div className={styles.gaugeWrap}>
+      <svg width="100%" viewBox="0 0 200 120">
         <path d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
           fill="none" stroke="#1e293b" strokeWidth={12} strokeLinecap="round" />
         <path d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}

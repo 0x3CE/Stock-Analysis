@@ -43,3 +43,27 @@
   font-size: 14px;
   font-family: var(--font-sans);
 }
+
+@media (max-width: 1024px) {
+  .card {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .layout {
+    gap: 16px;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .cardTitle {
+    font-size: 15px;
+  }
+
+  .emptyCard {
+    padding: 32px 16px;
+  }
+}

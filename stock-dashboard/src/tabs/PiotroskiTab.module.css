@@ -141,3 +141,46 @@
   color: var(--text-faint);
   font-family: var(--font-mono);
 }
+
+@media (max-width: 1024px) {
+  .headerCard,
+  .categoryCard {
+    padding: 20px;
+  }
+
+  .categoriesGrid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .headerCard {
+    padding: 16px;
+  }
+
+  .headerInner {
+    gap: 20px;
+  }
+
+  .headerMeta {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .categoriesGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .categoryCard {
+    padding: 16px;
+  }
+
+  .headerTitle {
+    font-size: 16px;
+  }
+
+  .interpretation {
+    font-size: 13px;
+  }
+}
