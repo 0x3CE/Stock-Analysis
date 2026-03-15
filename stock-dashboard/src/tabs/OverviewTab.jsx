@@ -3,14 +3,8 @@ import { KpiCard } from '../components/ui/KpiCard';
 import { MetricRow } from '../components/ui/MetricRow';
 import { StyledAreaChart } from '../components/ui/StyledAreaChart';
 import { getPERatioColor, sortByYear } from '../utils/Formatters';
+import styles from './OverviewTab.module.css';
 
-const CARD_STYLE = {
-  background: '#111827', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px',
-};
-
-/**
- * OverviewTab — Vue d'ensemble : KPIs, graphique de prix 30j, métriques clés.
- */
 const OverviewTab = ({ kpis, historical_data, dividend_history, profit_margin_history, chartHeight }) => {
   const recentPrices   = historical_data.slice(-30);
   const dividendSorted = sortByYear(dividend_history);
@@ -19,11 +13,7 @@ const OverviewTab = ({ kpis, historical_data, dividend_history, profit_margin_hi
   return (
     <div>
       {/* KPI Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px', marginBottom: '24px',
-      }}>
+      <div className={styles.kpiGrid}>
         <KpiCard
           label="Market Cap" value={`$${kpis.market_cap}B`}
           icon={DollarSign} iconColor="text-blue-400"
@@ -51,14 +41,10 @@ const OverviewTab = ({ kpis, historical_data, dividend_history, profit_margin_hi
       </div>
 
       {/* Graphique prix 30j */}
-      <div style={{ ...CARD_STYLE, marginBottom: '20px', animation: 'cardIn 0.4s ease 0.25s forwards', opacity: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '17px', color: '#f1f5f9' }}>
-            Évolution du Prix
-          </h2>
-          <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'DM Mono, monospace' }}>
-            30 derniers jours
-          </span>
+      <div className={styles.card} style={{ marginBottom: '20px', animation: 'cardIn 0.4s ease 0.25s forwards', opacity: 0 }}>
+        <div className={styles.cardHeader}>
+          <h2 className={styles.cardTitle}>Évolution du Prix</h2>
+          <span className={styles.cardUnit}>30 derniers jours</span>
         </div>
         <div style={{ height: chartHeight }}>
           <StyledAreaChart
@@ -72,11 +58,9 @@ const OverviewTab = ({ kpis, historical_data, dividend_history, profit_margin_hi
       </div>
 
       {/* Métriques clés */}
-      <div style={{ ...CARD_STYLE, animation: 'cardIn 0.4s ease 0.3s forwards', opacity: 0 }}>
-        <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '17px', color: '#f1f5f9', marginBottom: '16px' }}>
-          Métriques Clés
-        </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0 40px' }}>
+      <div className={styles.card} style={{ animation: 'cardIn 0.4s ease 0.3s forwards', opacity: 0 }}>
+        <h2 className={styles.cardTitle} style={{ marginBottom: '16px' }}>Métriques Clés</h2>
+        <div className={styles.metricsGrid}>
           <MetricRow label="52W High"      value={kpis.high_52w      ? `$${kpis.high_52w}`        : null} valueColor="#22c55e" />
           <MetricRow label="52W Low"       value={kpis.low_52w       ? `$${kpis.low_52w}`         : null} valueColor="#ef4444" />
           <MetricRow label="Beta"          value={kpis.beta          || null} />

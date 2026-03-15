@@ -1,0 +1,343 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: 24px;
+}
+
+.cardAnimated {
+  composes: card;
+  opacity: 0;
+}
+
+/* ── En-tête ───────────────────────────────────────────── */
+
+.headerInner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.headerDesc {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+.refreshBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-muted);
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  transition: color 0.2s;
+}
+
+.refreshBtn:hover {
+  color: var(--text-secondary);
+}
+
+/* ── Grille des pays ────────────────────────────────────── */
+
+.countriesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.countryCard {
+  border-radius: var(--radius-2xl);
+  padding: 24px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  opacity: 0;
+  animation: cardIn 0.4s ease forwards;
+  /* background, border-color et box-shadow dynamiques via style prop */
+}
+
+.countryCard:hover {
+  border-color: var(--border-strong);
+}
+
+.countryCardError {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: 24px;
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.countryHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.countryFlag {
+  font-size: 28px;
+}
+
+.countryName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  margin-top: 6px;
+}
+
+.countryRatio {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  /* color et filter dynamiques via style prop */
+}
+
+.countryLabel {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  margin-bottom: 14px;
+  /* background, color et border-color dynamiques */
+}
+
+.countryStats {
+  display: flex;
+  gap: 20px;
+}
+
+.statItem {}
+
+.statLabel {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.statValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.countryErrorText {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+/* ── Détail pays ─────────────────────────────────────────── */
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.detailGaugeTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.interpretation {
+  margin-top: 20px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  /* background et border dynamiques via style prop */
+}
+
+.interpretationLabel {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  margin-bottom: 6px;
+  /* color dynamique */
+}
+
+.interpretationText {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.source {
+  margin-top: 12px;
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+/* ── Légende ────────────────────────────────────────────── */
+
+.legend {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.legendTitle {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* background fourni via style prop */
+}
+
+.legendRange {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  width: 80px;
+}
+
+.legendLabel {
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--text-muted);
+}
+
+/* ── Comparaison ─────────────────────────────────────────── */
+
+.compareSection {
+  margin-top: 20px;
+}
+
+.compareTitle {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+
+.compareBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.compareFlag {
+  font-size: 16px;
+  width: 24px;
+}
+
+.compareTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-muted);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.compareFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 1s ease;
+  /* width, background, box-shadow dynamiques */
+}
+
+.compareRatio {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  width: 48px;
+  text-align: right;
+  /* color dynamique */
+}
+
+/* ── États de chargement/erreur ─────────────────────────── */
+
+.skeleton {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  animation: pulse 1.5s ease infinite;
+}
+
+.errorCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: 48px;
+  text-align: center;
+}
+
+.errorText {
+  color: var(--red);
+  margin-bottom: 16px;
+  font-family: var(--font-sans);
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}

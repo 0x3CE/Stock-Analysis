@@ -1,43 +1,20 @@
 import { Award } from 'lucide-react';
 import { PiotroskiGauge } from '../components/ui/PiotroskiGauge';
 import { getPiotroskiColor } from '../utils/Formatters';
+import styles from './PiotroskiTab.module.css';
 
-const CARD_STYLE = {
-  background: '#111827', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px',
-};
-
-/**
- * Carte individuelle pour un critère Piotroski.
- * Affiche le nom du critère, le score (✓/✗) et le détail chiffré.
- */
 const CriterionCard = ({ criterion, score, detail }) => (
-  <div style={{
-    borderRadius: '10px', padding: '12px',
-    background: score === 1 ? 'rgba(34,197,94,0.05)' : 'rgba(239,68,68,0.04)',
-    border: `1px solid ${score === 1 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.12)'}`,
-  }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-      <span style={{ color: '#cbd5e1', fontSize: '13px', fontFamily: 'DM Sans, sans-serif' }}>
-        {criterion}
-      </span>
-      <span style={{
-        fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '20px',
-        background: score === 1 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-        color: score === 1 ? '#22c55e' : '#ef4444',
-        fontFamily: 'DM Mono, monospace',
-      }}>
+  <div className={`${styles.criterion} ${score === 1 ? styles.criterionPass : styles.criterionFail}`}>
+    <div className={styles.criterionRow}>
+      <span className={styles.criterionName}>{criterion}</span>
+      <span className={`${styles.criterionBadge} ${score === 1 ? styles.criterionBadgePass : styles.criterionBadgeFail}`}>
         {score === 1 ? '✓ OUI' : '✗ NON'}
       </span>
     </div>
-    <div style={{ fontSize: '11px', color: '#475569', fontFamily: 'DM Mono, monospace' }}>
-      {detail}
-    </div>
+    <div className={styles.criterionDetail}>{detail}</div>
   </div>
 );
 
-/**
- * PiotroskiTab — Affiche la jauge, l'interprétation et les 9 critères détaillés.
- */
 const PiotroskiTab = ({ piotroski_score }) => {
   const pioColors = getPiotroskiColor(piotroski_score.total_score);
 
@@ -50,34 +27,24 @@ const PiotroskiTab = ({ piotroski_score }) => {
   return (
     <div>
       {/* En-tête score global */}
-      <div style={{
-        ...CARD_STYLE,
-        border: `1px solid ${pioColors.text}30`,
-        marginBottom: '20px',
-        animation: 'cardIn 0.4s ease 0.05s forwards', opacity: 0,
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '32px' }}>
+      <div
+        className={styles.headerCard}
+        style={{ borderColor: `${pioColors.text}30`, animation: 'cardIn 0.4s ease 0.05s forwards' }}
+      >
+        <div className={styles.headerInner}>
           <PiotroskiGauge score={piotroski_score.total_score} />
 
-          <div style={{ flex: 1, minWidth: '200px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+          <div className={styles.headerMeta}>
+            <div className={styles.headerTitleRow}>
               <Award size={20} style={{ color: '#f59e0b' }} />
-              <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '18px', color: '#f1f5f9' }}>
-                Piotroski F-Score
-              </h2>
+              <h2 className={styles.headerTitle}>Piotroski F-Score</h2>
             </div>
 
-            <p style={{ color: '#94a3b8', fontSize: '14px', lineHeight: '1.6', marginBottom: '16px' }}>
-              {piotroski_score.interpretation}
-            </p>
+            <p className={styles.interpretation}>{piotroski_score.interpretation}</p>
 
-            {/* Mini résumé par catégorie */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <div className={styles.miniSummary}>
               {categories.map(({ title, items }) => (
-                <span key={title} style={{
-                  fontSize: '11px', padding: '4px 10px', borderRadius: '20px',
-                  background: '#1e293b', color: '#64748b', fontFamily: 'DM Mono, monospace',
-                }}>
+                <span key={title} className={styles.miniTag}>
                   {title.split(' ')[0]} {items.filter(c => c.score === 1).length}/{items.length}
                 </span>
               ))}
@@ -87,16 +54,15 @@ const PiotroskiTab = ({ piotroski_score }) => {
       </div>
 
       {/* Détail des 3 catégories */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+      <div className={styles.categoriesGrid}>
         {categories.map(({ title, color, items, delay }) => (
-          <div key={title} style={{ ...CARD_STYLE, animation: `cardIn 0.4s ease ${delay}s forwards`, opacity: 0 }}>
-            <h3 style={{
-              fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '15px',
-              color, marginBottom: '16px',
-            }}>
-              {title}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div
+            key={title}
+            className={styles.categoryCard}
+            style={{ animation: `cardIn 0.4s ease ${delay}s forwards` }}
+          >
+            <h3 className={styles.categoryTitle} style={{ color }}>{title}</h3>
+            <div className={styles.criteriaList}>
               {items.map((item, idx) => (
                 <CriterionCard key={idx} {...item} />
               ))}

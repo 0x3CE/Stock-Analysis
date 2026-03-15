@@ -1,0 +1,55 @@
+/* ============================================================
+   Design Tokens — Stock Dashboard
+   Source unique de vérité pour toutes les valeurs visuelles.
+   ============================================================ */
+
+:root {
+  /* ── Arrière-plans ─────────────────────────────────────── */
+  --bg-base:     #0b0f1a;   /* Page / fond général          */
+  --bg-card:     #111827;   /* Cartes principales           */
+  --bg-surface:  #0d1117;   /* Inputs, dropdowns            */
+  --bg-elevated: #161b22;   /* Items au survol              */
+  --bg-muted:    #1e293b;   /* Badges neutres, icônes       */
+
+  /* ── Bordures ──────────────────────────────────────────── */
+  --border-subtle:  #1e293b;  /* Cartes                     */
+  --border-default: #21262d;  /* Inputs                     */
+  --border-strong:  #334155;  /* Hover                      */
+  --border-divider: #1a2332;  /* Séparateurs de tableau     */
+  --border-section: #0f172a;  /* Lignes de tableau          */
+
+  /* ── Textes ────────────────────────────────────────────── */
+  --text-primary:   #f8fafc;  /* Titres principaux          */
+  --text-secondary: #e2e8f0;  /* Corps de texte             */
+  --text-muted:     #94a3b8;  /* Texte secondaire           */
+  --text-dim:       #64748b;  /* Labels, metadata           */
+  --text-faint:     #475569;  /* Très discret               */
+  --text-ghost:     #334155;  /* Footer, hints              */
+
+  /* ── Couleurs d'accentuation ───────────────────────────── */
+  --accent:         #2563eb;
+  --accent-hover:   #1d4ed8;
+  --accent-light:   #60a5fa;
+  --green:          #22c55e;
+  --red:            #ef4444;
+  --orange:         #f59e0b;
+  --purple:         #6366f1;
+
+  /* ── Typographie ───────────────────────────────────────── */
+  --font-sans:    'DM Sans', sans-serif;
+  --font-mono:    'DM Mono', monospace;
+  --font-display: 'Syne', sans-serif;
+
+  /* ── Bordures arrondies ─────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   10px;
+  --radius-lg:   12px;
+  --radius-xl:   14px;
+  --radius-2xl:  16px;
+  --radius-full: 9999px;
+
+  /* ── Ombres ────────────────────────────────────────────── */
+  --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-drop:   0 16px 40px rgba(0, 0, 0, 0.6);
+  --shadow-accent: 0 4px 14px rgba(37, 99, 235, 0.3);
+}

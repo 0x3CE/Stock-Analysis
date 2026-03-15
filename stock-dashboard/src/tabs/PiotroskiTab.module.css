@@ -1,0 +1,143 @@
+.headerCard {
+  background: var(--bg-card);
+  border-radius: var(--radius-2xl);
+  padding: 24px;
+  margin-bottom: 20px;
+  opacity: 0;
+  /* border-color dynamique via style prop (couleur du score) */
+  border: 1px solid;
+}
+
+.headerInner {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 32px;
+}
+
+.headerMeta {
+  flex: 1;
+  min-width: 200px;
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.headerTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.interpretation {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.miniSummary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.miniTag {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-muted);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+/* ── Grille des catégories ─────────────────────────────── */
+
+.categoriesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.categoryCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: 24px;
+  opacity: 0;
+}
+
+.categoryTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 16px;
+  /* color fourni via style prop */
+}
+
+.criteriaList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── CriterionCard ────────────────────────────────────── */
+
+.criterion {
+  border-radius: var(--radius-md);
+  padding: 12px;
+  border: 1px solid;
+}
+
+.criterionPass {
+  background: rgba(34, 197, 94, 0.05);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+
+.criterionFail {
+  background: rgba(239, 68, 68, 0.04);
+  border-color: rgba(239, 68, 68, 0.12);
+}
+
+.criterionRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.criterionName {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.criterionBadge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+}
+
+.criterionBadgePass {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--green);
+}
+
+.criterionBadgeFail {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--red);
+}
+
+.criterionDetail {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}

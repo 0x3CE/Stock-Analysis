@@ -5,21 +5,17 @@
  * - Barre de recherche avec autocomplete
  * - En-tête société (nom, prix, variation)
  * - Navigation par onglets
- * - Routing vers les onglets : Overview, Financials, Piotroski, Buffett
- *
- * Chaque onglet est isolé dans src/tabs/.
- * Les composants réutilisables sont dans src/components/ui/.
- * Les utilitaires sont dans src/utils/formatters.js.
+ * - Routing vers les onglets : Overview, Financials, Piotroski, Buffett, Comparer
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon, GitCompare, Star, Download } from 'lucide-react';
+import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon, GitCompare, Download } from 'lucide-react';
 
-import { useIsMobile }    from './hooks/Useismobile';
-import { useFavorites }   from './hooks/useFavorites';
-import { Badge }          from './components/ui/Badge';
+import { useIsMobile }  from './hooks/Useismobile';
+import { useFavorites } from './hooks/useFavorites';
+import { Badge }        from './components/ui/Badge';
 import { SECTOR_COLORS, getCurrencySymbol, SEARCH_DEBOUNCE_MS } from './utils/Formatters';
-import { exportToCSV }    from './utils/exportUtils';
+import { exportToCSV }  from './utils/exportUtils';
 
 import OverviewTab   from './tabs/OverviewTab';
 import FinancialsTab from './tabs/FinancialsTab';
@@ -27,32 +23,37 @@ import PiotroskiTab  from './tabs/PiotroskiTab';
 import BuffettTab    from './tabs/BuffettTab';
 import CompareTab    from './tabs/CompareTab';
 
+import styles from './App.module.css';
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// ---------------------------------------------------------------------------
-// Skeleton Loader
-// ---------------------------------------------------------------------------
+const TABS = [
+  { id: 'overview',   label: "Vue d'ensemble", icon: Layers     },
+  { id: 'financials', label: 'Financiers',     icon: BarChart3  },
+  { id: 'piotroski',  label: 'Piotroski',      icon: Award      },
+  { id: 'buffett',    label: 'Buffett',         icon: BuffettIcon },
+  { id: 'compare',   label: 'Comparer',        icon: GitCompare },
+];
 
-const SkeletonBlock = ({ style = {} }) => (
-  <div style={{
-    background: 'rgba(255,255,255,0.05)', borderRadius: '12px',
-    animation: 'pulse 1.5s ease infinite', ...style,
-  }} />
-);
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
 
 const SkeletonDashboard = () => (
-  <div style={{ minHeight: '100vh', background: '#0b0f1a', padding: '32px 24px' }}>
-    <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <SkeletonBlock style={{ height: '48px', width: '320px' }} />
-      <SkeletonBlock style={{ height: '100px', width: '400px' }} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-        {[...Array(4)].map((_, i) => <SkeletonBlock key={i} style={{ height: '120px' }} />)}
+  <div className={styles.skeletonPage}>
+    <div className={styles.skeletonInner}>
+      <div className={styles.skeletonBlock} style={{ height: '48px', width: '320px' }} />
+      <div className={styles.skeletonBlock} style={{ height: '100px', width: '400px' }} />
+      <div className={styles.skeletonGrid}>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className={styles.skeletonBlock} style={{ height: '120px' }} />
+        ))}
       </div>
-      <SkeletonBlock style={{ height: '300px' }} />
+      <div className={styles.skeletonBlock} style={{ height: '300px' }} />
     </div>
   </div>
 );
@@ -61,37 +62,18 @@ const SkeletonDashboard = () => (
 // TabBar
 // ---------------------------------------------------------------------------
 
-const TABS = [
-  { id: 'overview',   label: "Vue d'ensemble", icon: Layers },
-  { id: 'financials', label: 'Financiers',     icon: BarChart3 },
-  { id: 'piotroski',  label: 'Piotroski',      icon: Award },
-  { id: 'buffett',    label: 'Buffett',         icon: BuffettIcon },
-  { id: 'compare',   label: 'Comparer',        icon: GitCompare },
-];
-
 const TabBar = ({ active, onChange }) => (
-  <div style={{
-    display: 'flex', gap: '4px', background: '#0d1117',
-    borderRadius: '14px', padding: '5px',
-    border: '1px solid #1e293b', marginBottom: '32px',
-  }}>
-    {TABS.map(({ id, label, icon: Icon }) => {
-      const isActive = active === id;
-      return (
-        <button key={id} onClick={() => onChange(id)} style={{
-          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-          padding: '10px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-          fontFamily: 'DM Sans, sans-serif', fontSize: '13px', fontWeight: '600',
-          transition: 'all 0.2s',
-          background: isActive ? '#2563eb' : 'transparent',
-          color:      isActive ? '#fff'     : '#64748b',
-          boxShadow:  isActive ? '0 4px 14px rgba(37,99,235,0.3)' : 'none',
-        }}>
-          <Icon size={14} />
-          <span>{label}</span>
-        </button>
-      );
-    })}
+  <div className={styles.tabBar}>
+    {TABS.map(({ id, label, icon: Icon }) => (
+      <button
+        key={id}
+        onClick={() => onChange(id)}
+        className={active === id ? styles.tabActive : styles.tab}
+      >
+        <Icon size={14} />
+        <span>{label}</span>
+      </button>
+    ))}
   </div>
 );
 
@@ -145,12 +127,10 @@ const StockDashboard = () => {
     }
   }, []);
 
-  // Chargement initial du ticker par défaut
-  useEffect(() => {
-    fetchAnalysis(ticker);
-  }, [fetchAnalysis]);
+  // Chargement initial
+  useEffect(() => { fetchAnalysis(ticker); }, [fetchAnalysis]);
 
-  // Nettoyage du debounce au démontage
+  // Nettoyage debounce
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
@@ -173,31 +153,16 @@ const StockDashboard = () => {
     fetchAnalysis(symbol);
   };
 
-  // ── États spéciaux ───────────────────────────────────────────────────────
+  // ── États spéciaux ────────────────────────────────────────────────────────
 
   if (loading) return <SkeletonDashboard />;
 
   if (error) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: '#0b0f1a' }}>
-      <div style={{
-        background: 'rgba(127,29,29,0.3)', border: '1px solid rgba(239,68,68,0.3)',
-        borderRadius: '16px', padding: '40px', maxWidth: '400px', textAlign: 'center',
-      }}>
-        <div style={{ color: '#f87171', fontSize: '18px', fontWeight: '700',
-          fontFamily: 'Syne, sans-serif', marginBottom: '10px' }}>
-          Erreur de chargement
-        </div>
-        <div style={{ color: 'rgba(248,113,113,0.7)', fontSize: '14px',
-          marginBottom: '24px', fontFamily: 'DM Sans, sans-serif' }}>
-          {error}
-        </div>
-        <button onClick={() => { setError(null); fetchAnalysis(ticker); }}
-          style={{
-            padding: '10px 24px', background: '#dc2626', color: '#fff',
-            border: 'none', borderRadius: '10px', cursor: 'pointer',
-            fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
-          }}>
+    <div className={styles.errorPage}>
+      <div className={styles.errorCard}>
+        <div className={styles.errorTitle}>Erreur de chargement</div>
+        <div className={styles.errorMessage}>{error}</div>
+        <button onClick={() => { setError(null); fetchAnalysis(ticker); }} className={styles.errorBtn}>
           Réessayer
         </button>
       </div>
@@ -216,197 +181,127 @@ const StockDashboard = () => {
   const currencySymbol = getCurrencySymbol(currency);
 
   return (
-    <>
-      <div style={{ minHeight: '100vh', background: '#0b0f1a', color: '#e2e8f0',
-        fontFamily: 'DM Sans, sans-serif' }} className="app-root">
-        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '32px 24px' }}>
+    <div className={styles.page}>
+      <div className={styles.container}>
 
-          {/* ── Barre de recherche ──────────────────────────────── */}
-          <div style={{ position: 'relative', marginBottom: favorites.length > 0 ? '16px' : '40px' }}>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <input
-                  type="text" value={ticker}
-                  onChange={handleTickerChange} onKeyDown={handleKeyDown}
-                  placeholder="Ticker ou nom de société…"
-                  style={{
-                    width: '100%', padding: '14px 20px',
-                    background: '#0d1117', border: '1px solid #21262d',
-                    borderRadius: '12px', color: '#e2e8f0', fontSize: '14px',
-                    fontFamily: 'DM Mono, monospace', outline: 'none',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#2563eb'}
-                  onBlur={(e)  => e.target.style.borderColor = '#21262d'}
-                />
+        {/* ── Barre de recherche ───────────────────────────── */}
+        <div className={favorites.length > 0 ? styles.searchAreaTight : styles.searchAreaSpaced}>
+          <div className={styles.searchRow}>
+            <div className={styles.searchInputWrap}>
+              <input
+                type="text"
+                value={ticker}
+                onChange={handleTickerChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ticker ou nom de société…"
+                className={styles.searchInput}
+              />
 
-                {(suggestions.length > 0 || suggestionsLoading) && (
-                  <div style={{
-                    position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0, zIndex: 50,
-                    background: '#0d1117', border: '1px solid #21262d', borderRadius: '12px',
-                    overflow: 'hidden', boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
-                  }}>
-                    {suggestionsLoading && (
-                      <div style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>
-                        Recherche…
-                      </div>
-                    )}
-                    {suggestions.map((s, idx) => (
-                      <div key={idx} onMouseDown={(e) => handleSuggestion(e, s.symbol)}
-                        style={{
-                          padding: '12px 16px', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: '12px',
-                          borderBottom: '1px solid #161b22', transition: 'background 0.15s',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#161b22'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                        <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: '700',
-                          color: '#60a5fa', fontSize: '13px', width: '60px', flexShrink: 0 }}>
-                          {s.symbol}
-                        </span>
-                        <span style={{ color: '#94a3b8', fontSize: '13px',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {s.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <button onClick={handleAnalyze} style={{
-                padding: '14px 28px',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
-                color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer',
-                fontWeight: '600', fontSize: '14px', fontFamily: 'DM Sans, sans-serif',
-                boxShadow: '0 4px 14px rgba(37,99,235,0.3)', transition: 'transform 0.2s',
-              }}
-                onMouseEnter={(e) => e.target.style.transform = 'translateY(-1px)'}
-                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}>
-                Analyser
-              </button>
-            </div>
-          </div>
-
-          {/* ── Barre de favoris ───────────────────────────────── */}
-          {favorites.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '40px' }}>
-              {favorites.map((fav) => (
-                <button key={fav} onClick={() => { setTicker(fav); fetchAnalysis(fav); }}
-                  style={{
-                    padding: '6px 14px', borderRadius: '8px', border: '1px solid #21262d',
-                    background: analysis?.ticker === fav ? '#1e3a5f' : '#0d1117',
-                    color: analysis?.ticker === fav ? '#60a5fa' : '#64748b',
-                    cursor: 'pointer', fontSize: '12px', fontWeight: '700',
-                    fontFamily: 'DM Mono, monospace', transition: 'all 0.15s',
-                  }}>
-                  ★ {fav}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Affichage uniquement si une analyse est chargée */}
-          {analysis && (
-            <>
-              {/* ── En-tête société ──────────────────────────────── */}
-              <div style={{ marginBottom: '32px', animation: 'cardIn 0.4s ease forwards' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px', alignItems: 'center' }}>
-                  {sector  && <Badge label={sector}   color={sectorColor} />}
-                  {market  && <Badge label={market}   color="#64748b" />}
-                  <Badge label={currency} color="#6366f1" />
-
-                  {/* Bouton favori */}
-                  <button onClick={() => toggleFavorite(analysis.ticker)}
-                    title={isFavorite(analysis.ticker) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                    style={{
-                      marginLeft: '4px', background: 'none', border: '1px solid #1e293b',
-                      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer',
-                      color: isFavorite(analysis.ticker) ? '#f59e0b' : '#334155',
-                      fontSize: '16px', transition: 'all 0.2s', lineHeight: 1,
-                    }}>
-                    {isFavorite(analysis.ticker) ? '★' : '☆'}
-                  </button>
-
-                  {/* Bouton export CSV */}
-                  <button onClick={() => exportToCSV(analysis)}
-                    title="Exporter en CSV"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '5px',
-                      background: 'none', border: '1px solid #1e293b',
-                      borderRadius: '8px', padding: '4px 10px', cursor: 'pointer',
-                      color: '#334155', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
-                      fontWeight: '600', transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#2563eb'}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = '#1e293b'}>
-                    <Download size={12} />
-                    CSV
-                  </button>
+              {(suggestions.length > 0 || suggestionsLoading) && (
+                <div className={styles.dropdown}>
+                  {suggestionsLoading && (
+                    <div className={styles.dropdownLoading}>Recherche…</div>
+                  )}
+                  {suggestions.map((s, idx) => (
+                    <div key={idx} className={styles.suggestion} onMouseDown={(e) => handleSuggestion(e, s.symbol)}>
+                      <span className={styles.suggestionSymbol}>{s.symbol}</span>
+                      <span className={styles.suggestionName}>{s.name}</span>
+                    </div>
+                  ))}
                 </div>
-
-                <h1 style={{
-                  fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: '800',
-                  fontFamily: 'Syne, sans-serif', color: '#f8fafc',
-                  marginBottom: '12px', lineHeight: 1.1,
-                }}>
-                  {name}
-                </h1>
-
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 'clamp(32px, 6vw, 60px)', fontWeight: '700',
-                    fontFamily: 'Syne, sans-serif', color: '#f8fafc' }}>
-                    {currencySymbol}{kpis.current_price}
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px',
-                    fontSize: '20px', fontWeight: '600',
-                    color: pricePositive ? '#22c55e' : '#ef4444' }}>
-                    {pricePositive ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-                    {pricePositive ? '+' : ''}{kpis.price_change}%
-                  </span>
-                </div>
-              </div>
-
-              {/* ── Navigation ──────────────────────────────────── */}
-              <TabBar active={activeTab} onChange={setActiveTab} />
-
-              {/* ── Onglets ─────────────────────────────────────── */}
-              {activeTab === 'overview' && (
-                <OverviewTab
-                  kpis={kpis}
-                  historical_data={analysis.historical_data}
-                  dividend_history={analysis.dividend_history}
-                  profit_margin_history={analysis.profit_margin_history}
-                  chartHeight={chartHeight}
-                />
               )}
-              {activeTab === 'financials' && (
-                <FinancialsTab
-                  profit_margin_history={analysis.profit_margin_history}
-                  dividend_history={analysis.dividend_history}
-                  chartHeight={chartHeight}
-                />
-              )}
-              {activeTab === 'piotroski' && (
-                <PiotroskiTab piotroski_score={analysis.piotroski_score} />
-              )}
-              {activeTab === 'buffett' && (
-                <BuffettTab />
-              )}
-              {activeTab === 'compare' && (
-                <CompareTab mainAnalysis={analysis} />
-              )}
-            </>
-          )}
+            </div>
 
-          {/* Footer */}
-          <div style={{ marginTop: '48px', paddingBottom: '24px', textAlign: 'center',
-            color: '#1e293b', fontSize: '12px', fontFamily: 'DM Mono, monospace' }}>
-            Données fournies par Yahoo Finance · yfinance · FRED · Banque Mondiale
+            <button onClick={handleAnalyze} className={styles.searchBtn}>
+              Analyser
+            </button>
           </div>
         </div>
+
+        {/* ── Barre de favoris ─────────────────────────────── */}
+        {favorites.length > 0 && (
+          <div className={styles.favBar}>
+            {favorites.map((fav) => (
+              <button
+                key={fav}
+                onClick={() => { setTicker(fav); fetchAnalysis(fav); }}
+                className={analysis?.ticker === fav ? styles.favBtnActive : styles.favBtn}
+              >
+                ★ {fav}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Contenu principal ────────────────────────────── */}
+        {analysis && (
+          <>
+            {/* En-tête société */}
+            <div className={styles.stockHeader}>
+              <div className={styles.headerBadges}>
+                {sector && <Badge label={sector}   color={sectorColor} />}
+                {market && <Badge label={market}   color="#64748b" />}
+                <Badge label={currency} color="#6366f1" />
+
+                <button
+                  onClick={() => toggleFavorite(analysis.ticker)}
+                  title={isFavorite(analysis.ticker) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                  className={isFavorite(analysis.ticker) ? styles.starBtnActive : styles.starBtn}
+                >
+                  {isFavorite(analysis.ticker) ? '★' : '☆'}
+                </button>
+
+                <button onClick={() => exportToCSV(analysis)} title="Exporter en CSV" className={styles.exportBtn}>
+                  <Download size={12} />
+                  CSV
+                </button>
+              </div>
+
+              <h1 className={styles.stockName}>{name}</h1>
+
+              <div className={styles.priceRow}>
+                <span className={styles.price}>{currencySymbol}{kpis.current_price}</span>
+                <span className={`${styles.priceChange} ${pricePositive ? styles.priceUp : styles.priceDown}`}>
+                  {pricePositive ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                  {pricePositive ? '+' : ''}{kpis.price_change}%
+                </span>
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <TabBar active={activeTab} onChange={setActiveTab} />
+
+            {/* Onglets */}
+            {activeTab === 'overview' && (
+              <OverviewTab
+                kpis={kpis}
+                historical_data={analysis.historical_data}
+                dividend_history={analysis.dividend_history}
+                profit_margin_history={analysis.profit_margin_history}
+                chartHeight={chartHeight}
+              />
+            )}
+            {activeTab === 'financials' && (
+              <FinancialsTab
+                profit_margin_history={analysis.profit_margin_history}
+                dividend_history={analysis.dividend_history}
+                chartHeight={chartHeight}
+              />
+            )}
+            {activeTab === 'piotroski' && (
+              <PiotroskiTab piotroski_score={analysis.piotroski_score} />
+            )}
+            {activeTab === 'buffett' && <BuffettTab />}
+            {activeTab === 'compare'  && <CompareTab mainAnalysis={analysis} />}
+          </>
+        )}
+
+        {/* Footer */}
+        <div className={styles.footer}>
+          Données fournies par Yahoo Finance · yfinance · FRED · Banque Mondiale
+        </div>
       </div>
-    </>
+    </div>
   );
 };
 

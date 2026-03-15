@@ -4,30 +4,20 @@ import {
 } from 'recharts';
 import { StyledAreaChart } from '../components/ui/StyledAreaChart';
 import { sortByYear } from '../utils/Formatters';
+import styles from './FinancialsTab.module.css';
 
-const CARD_STYLE = {
-  background: '#111827', border: '1px solid #1e293b', borderRadius: '16px', padding: '24px',
-};
-
-/**
- * FinancialsTab — Historiques financiers : bénéfice net, marge nette, dividendes.
- */
 const FinancialsTab = ({ profit_margin_history, dividend_history, chartHeight }) => {
   const profitSorted   = sortByYear(profit_margin_history);
   const dividendSorted = sortByYear(dividend_history);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className={styles.layout}>
 
       {/* Bénéfice net */}
-      <div style={{ ...CARD_STYLE, animation: 'cardIn 0.4s ease 0.05s forwards', opacity: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '17px', color: '#f1f5f9' }}>
-            Bénéfice Net
-          </h2>
-          <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'DM Mono, monospace' }}>
-            milliards USD
-          </span>
+      <div className={styles.card} style={{ animation: 'cardIn 0.4s ease 0.05s forwards' }}>
+        <div className={styles.cardHeader}>
+          <h2 className={styles.cardTitle}>Bénéfice Net</h2>
+          <span className={styles.cardUnit}>milliards USD</span>
         </div>
         <div style={{ height: chartHeight }}>
           <StyledAreaChart
@@ -40,13 +30,11 @@ const FinancialsTab = ({ profit_margin_history, dividend_history, chartHeight })
         </div>
       </div>
 
-      {/* Marge nette avec ligne de référence à 20% */}
-      <div style={{ ...CARD_STYLE, animation: 'cardIn 0.4s ease 0.1s forwards', opacity: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '17px', color: '#f1f5f9' }}>
-            Marge Nette
-          </h2>
-          <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'DM Mono, monospace' }}>%</span>
+      {/* Marge nette */}
+      <div className={styles.card} style={{ animation: 'cardIn 0.4s ease 0.1s forwards' }}>
+        <div className={styles.cardHeader}>
+          <h2 className={styles.cardTitle}>Marge Nette</h2>
+          <span className={styles.cardUnit}>%</span>
         </div>
         <div style={{ height: chartHeight }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -82,14 +70,10 @@ const FinancialsTab = ({ profit_margin_history, dividend_history, chartHeight })
 
       {/* Dividendes */}
       {dividendSorted.length > 0 ? (
-        <div style={{ ...CARD_STYLE, animation: 'cardIn 0.4s ease 0.15s forwards', opacity: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: '700', fontSize: '17px', color: '#f1f5f9' }}>
-              Dividendes
-            </h2>
-            <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'DM Mono, monospace' }}>
-              5 dernières années
-            </span>
+        <div className={styles.card} style={{ animation: 'cardIn 0.4s ease 0.15s forwards' }}>
+          <div className={styles.cardHeader}>
+            <h2 className={styles.cardTitle}>Dividendes</h2>
+            <span className={styles.cardUnit}>5 dernières années</span>
           </div>
           <div style={{ height: chartHeight }}>
             <StyledAreaChart
@@ -102,10 +86,8 @@ const FinancialsTab = ({ profit_margin_history, dividend_history, chartHeight })
           </div>
         </div>
       ) : (
-        <div style={{ ...CARD_STYLE, textAlign: 'center', padding: '48px', animation: 'cardIn 0.4s ease 0.15s forwards', opacity: 0 }}>
-          <p style={{ color: '#475569', fontSize: '14px', fontFamily: 'DM Sans, sans-serif' }}>
-            Aucun dividende versé sur les 5 dernières années.
-          </p>
+        <div className={styles.emptyCard} style={{ animation: 'cardIn 0.4s ease 0.15s forwards' }}>
+          <p className={styles.emptyText}>Aucun dividende versé sur les 5 dernières années.</p>
         </div>
       )}
     </div>

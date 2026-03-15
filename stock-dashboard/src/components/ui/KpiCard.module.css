@@ -1,0 +1,53 @@
+.card {
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 20px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  animation: cardIn 0.4s ease forwards;
+  /* animation-delay fourni via style prop (valeur dynamique par carte) */
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-family: var(--font-sans);
+}
+
+.iconWrap {
+  background: var(--bg-muted);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+}
+
+.value {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  /* surchargé via style prop si valueColor fourni */
+}
+
+.sparkline {
+  margin-top: auto;
+}

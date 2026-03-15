@@ -1,0 +1,20 @@
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.label {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.value {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-secondary); /* surchargé via style prop si valueColor fourni */
+}

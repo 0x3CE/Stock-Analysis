@@ -1,0 +1,9 @@
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid;
+  font-family: var(--font-sans);
+  /* color, background-color et border-color sont fournis via style prop (valeur dynamique) */
+}
