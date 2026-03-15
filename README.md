@@ -1,243 +1,252 @@
-# 📊 Dashboard d'Analyse d'Actions avec Piotroski F-Score
+# Stock Analysis Dashboard
 
-Architecture moderne **Backend Python (FastAPI) + Frontend React** pour l'analyse financière d'actions avec calcul automatique du Piotroski F-Score.
+Dashboard d'analyse boursière avec calcul du **Piotroski F-Score**, **Buffett Indicator**, comparaison multi-tickers et export CSV.
+
+> **Stack :** FastAPI (Python 3.12) · React 18 (Vite) · Docker
 
 ---
 
-## 🏗️ Architecture
+<!-- Pour enregistrer le GIF :
+  1. Lance l'app en local (voir section Lancement)
+  2. Utilise QuickTime > Nouvel enregistrement d'écran (Mac)
+     ou ShareX / ScreenToGif (Windows)
+  3. Enregistre ~30s de navigation (recherche, onglets, Buffett, comparaison)
+  4. Convertis en GIF avec https://ezgif.com/video-to-gif
+  5. Place le fichier dans docs/demo.gif et remplace la ligne ci-dessous
+-->
 
-```md
-project/
-├── backend/
-│   ├── main.py              # API FastAPI
-│   ├── requirements.txt     # Dépendances Python
-│   └── .env                 # Variables d'environnement (optionnel)
+![Demo](docs/demo.gif)
+
+---
+
+## Fonctionnalités
+
+| Onglet | Contenu |
+|--------|---------|
+| **Vue d'ensemble** | Prix, variation, Market Cap, P/E, Dividend Yield, Volume · Graphique 30j · 8 métriques clés |
+| **Financiers** | Bénéfice net, Marge nette (avec seuil 20%), Dividendes sur 5 ans |
+| **Piotroski F-Score** | Jauge 0–9 · 9 critères détaillés (Rentabilité, Levier, Efficacité) |
+| **Buffett Indicator** | Market Cap / GDP pour US, Zone Euro, UK, Japon · Données Banque Mondiale |
+| **Comparer** | Tableau KPIs côte à côte pour jusqu'à 4 tickers · Coloration meilleur/moins bon |
+
+**Autres fonctionnalités**
+- Recherche par ticker ou nom de société avec autocomplete
+- Favoris persistés en localStorage
+- Export CSV complet (KPIs + Piotroski + historique + dividendes)
+- Cache serveur TTL 5 min (cachetools)
+- Rate limiting (10 req/min sur `/analyze`, 30 req/min sur `/search`)
+- Design système complet (CSS modules + tokens CSS)
+
+---
+
+## Architecture
+
+```
+Stock_analysis/
+├── backend/                        # API FastAPI
+│   ├── main.py                     # App + CORS + rate limiter
+│   ├── core/
+│   │   ├── config.py               # Settings (ALLOWED_ORIGINS via .env)
+│   │   └── limiter.py              # Instance slowapi partagée
+│   ├── routes/
+│   │   ├── analysis_routes.py      # GET /api/analyze/{ticker}
+│   │   ├── buffet_routes.py        # GET /api/buffett-indicator
+│   │   ├── health_routes.py        # GET /health
+│   ├── services/
+│   │   └── stock_service.py        # Logique métier yfinance + Piotroski
+│   ├── models/
+│   │   └── schemas.py              # Pydantic schemas
+│   ├── tests/                      # pytest (25 tests)
+│   ├── requirements.txt
+│   └── .env                        # Non commité — voir Configuration
 │
-└── stock-dashboard/
-    ├── src/
-    │   └── App.jsx          # Dashboard React
-    ├── package.json
-    └── ...
+└── stock-dashboard/                # Frontend React (Vite)
+    └── src/
+        ├── App.jsx                 # Shell principal
+        ├── styles/tokens.css       # Design tokens CSS
+        ├── tabs/                   # 5 onglets isolés
+        ├── components/ui/          # Badge, KpiCard, MetricRow…
+        ├── hooks/                  # useFavorites, useIsMobile
+        └── utils/                  # Formatters, exportUtils
+```
+
+**Flux de données**
+
+```
+React → GET /api/analyze/{ticker}
+             ↓
+        StockDataService
+             ├── yfinance (prix, KPIs, historique, dividendes)
+             └── Piotroski F-Score (9 critères)
+             ↓
+        TTLCache (5 min) → SafeJSONResponse
 ```
 
 ---
 
-## 🚀 Installation
+## Lancement
 
-### 1️⃣ Backend Python (FastAPI)
+### Prérequis
+
+- Python 3.12+
+- Node.js 20+
+- Docker & Docker Compose (optionnel)
+
+---
+
+### Option 1 — Docker (recommandé)
 
 ```bash
-# Créer un environnement virtuel
+# Copier et configurer le .env backend
+cp backend/.env.example backend/.env   # ou créer le fichier manuellement
+
+docker compose up --build
+```
+
+- Frontend : http://localhost:3000
+- Backend  : http://localhost:8000
+- Swagger  : http://localhost:8000/docs
+
+---
+
+### Option 2 — Local
+
+**Backend**
+
+```bash
 python -m venv venv
+source venv/bin/activate        # Mac/Linux
+# venv\Scripts\activate         # Windows
 
-# Activer l'environnement
-# Sur Windows:
-venv\Scripts\activate
-# Sur Mac/Linux:
-source venv/bin/activate
+pip install -r backend/requirements.txt
 
-# Installer les dépendances
-pip install fastapi uvicorn yfinance pandas python-dotenv
-```
-
-**Ou créer un `requirements.txt` :**
-```txt
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-yfinance==0.2.32
-pandas==2.1.3
-python-dotenv==1.0.0
-```
-
-Puis : `pip install -r requirements.txt`
-
-### 2️⃣ Frontend React
-
-```bash
-# Si projet existant
-npm install recharts lucide-react
-
-# Si nouveau projet (Create React App / Vite)
-npx create-react-app stock-dashboard
-cd stock-dashboard
-npm install recharts lucide-react
-```
-
----
-
-## ▶️ Lancement
-
-### 1. Démarrer le Backend (port 8000)
-
-```bash
 cd backend
-python main.py
+uvicorn main:app --reload --port 8000
 ```
 
-L'API sera disponible sur : **http://localhost:8000**
-
-Endpoints disponibles :
-- `GET /` - Documentation API
-- `GET /health` - Health check
-- `GET /analyze/{ticker}` - Analyse complète d'une action
-
-### 2. Démarrer le Frontend (port 3000)
+**Frontend**
 
 ```bash
 cd stock-dashboard
-npm start
-```
-
-Le dashboard sera accessible sur : **http://localhost:3000**
-
----
-
-## 📡 Configuration CORS (si nécessaire)
-
-Si vous rencontrez des erreurs CORS, vérifiez dans `main.py` :
-
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Votre URL frontend
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+npm install
+npm start                       # http://localhost:3000
 ```
 
 ---
 
-## 🧪 Tester l'API manuellement
+## Configuration
 
-### Via curl :
+Créer `backend/.env` (non commité) :
+
+```env
+# Origines autorisées pour le CORS
+# En développement :
+ALLOWED_ORIGINS=*
+
+# En production (remplacer par l'URL réelle du frontend) :
+# ALLOWED_ORIGINS=https://mon-app.onrender.com
+```
+
+Créer `stock-dashboard/.env` (non commité) :
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+---
+
+## Tests
+
 ```bash
-curl http://localhost:8000/analyze/AAPL
-```
+# Backend (25 tests)
+pip install -r backend/requirements-dev.txt
+pytest backend/tests/
 
-### Via navigateur :
-```
-http://localhost:8000/analyze/AAPL
-```
-
-### Documentation interactive (Swagger) :
-```
-http://localhost:8000/docs
+# Frontend
+cd stock-dashboard
+npm install
+npm test
 ```
 
 ---
 
-## 📊 Fonctionnalités
+## API
 
-### KPIs Principaux
-- Prix actuel + variation journalière
-- Capitalisation boursière
-- P/E Ratio, Dividend Yield
-- Volume, Beta, EPS
-- ROE, Debt/Equity, Current Ratio
-- Marges de profit
+| Méthode | Endpoint | Description | Limite |
+|---------|----------|-------------|--------|
+| `GET` | `/health` | Health check | — |
+| `GET` | `/api/analyze/{ticker}` | Analyse complète + Piotroski | 10/min |
+| `GET` | `/api/search/{query}` | Autocomplete tickers | 30/min |
+| `GET` | `/api/buffett-indicator` | Buffett Indicator (4 pays) | 20/min |
 
-### Piotroski F-Score (0-9)
-Analyse sur **9 critères** répartis en 3 catégories :
+**Exemple**
 
-1. **Rentabilité** (4 critères)
-   - ROA positif
-   - Cash Flow opérationnel positif
-   - ROA en croissance
-   - Qualité des bénéfices
-
-2. **Levier / Liquidité** (3 critères)
-   - Dette/Equity
-   - Current Ratio
-   - Pas de nouvelle émission d'actions
-
-3. **Efficacité Opérationnelle** (2 critères)
-   - Marge brute
-   - Rotation des actifs
-
-### Visualisations
-- Graphique d'évolution du prix sur 30 jours
-- Score Piotroski avec code couleur (vert ≥7, jaune 4-6, rouge <4)
-
----
-
-## 🛠️ Technologies Utilisées
-
-### Backend
-- **FastAPI** : Framework web moderne et rapide
-- **yfinance** : Récupération de données Yahoo Finance
-- **Pydantic** : Validation des données
-- **Uvicorn** : Serveur ASGI
-
-### Frontend
-- **React** : Bibliothèque UI
-- **Recharts** : Graphiques interactifs
-- **Lucide React** : Icônes modernes
-- **Tailwind CSS** : Styling
-
----
-
-## 📝 Comment faire une recherche d'action ? 
-
-Il vous ai possible de faire une recherche full text ou alors avec le ticker
-
-*exemple*
--Apple
--APPL
-
-
----
-
-## 🏗️ Développement à suivre
-
-- intégration de news relatif à l'action
-- Indiquer le code ISIN
-- Indiquer les tendances et "conseils" d'achat/vente/conservation/renforcement
-- Intégrer des prévisions de cours selon un timeseries
-- Intégrer la saisonnalité sur les 5 dernières années.
-
----
-
-## 🔧 Production
-
-### Backend (avec Gunicorn)
 ```bash
-pip install gunicorn
-gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
-```
-
-### Frontend (Build)
-```bash
-npm run build
-# Servir les fichiers statiques avec nginx ou équivalent
+curl http://localhost:8000/api/analyze/AAPL
+curl http://localhost:8000/api/search/Apple
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Piotroski F-Score
 
-### Erreur "Ticker invalide"
-- Vérifier que l'action est bien disponible sur Yahoo finance.
+Système de scoring financier sur **9 critères** (Joseph Piotroski, 2000) :
 
-### Erreur CORS
-- Vérifier la configuration du middleware CORS dans `main.py`
-- S'assurer que l'URL frontend est autorisée
+| Catégorie | Critères |
+|-----------|----------|
+| **Rentabilité** (4 pts) | ROA positif · CFO positif · ROA en hausse · CFO > Bénéfice net |
+| **Levier / Liquidité** (3 pts) | Levier en baisse · Current ratio positif · Pas de dilution |
+| **Efficacité** (2 pts) | Marge brute en hausse · Rotation des actifs en hausse |
 
-### API lente
-- Les appels à yfinance peuvent prendre 2-5 secondes
-- Possibilité d'ajouter un cache Redis pour améliorer les performances
+| Score | Interprétation |
+|-------|----------------|
+| ≥ 7 | Entreprise solide |
+| 4 – 6 | Potentiel — analyse approfondie recommandée |
+| < 4 | Signaux faibles — prudence |
 
 ---
 
-## 📚 Ressources
+## Stack technique
+
+| Couche | Technologies |
+|--------|-------------|
+| **Backend** | Python 3.12 · FastAPI 0.118 · Uvicorn · yfinance · pandas · cachetools · slowapi |
+| **Frontend** | React 18 · Vite 5 · Recharts · Lucide React · CSS Modules |
+| **Données** | Yahoo Finance (yfinance) · Banque Mondiale API |
+| **Tests** | pytest · pytest-asyncio · vitest |
+| **Infra** | Docker · Docker Compose |
+
+---
+
+## Déploiement production
+
+Le projet est déployable sur [Render](https://render.com), [Railway](https://railway.app) ou tout autre hébergeur Docker.
+
+**Points à configurer avant de déployer :**
+
+```env
+# backend/.env
+ALLOWED_ORIGINS=https://ton-frontend.com
+```
+
+```env
+# stock-dashboard/.env
+VITE_API_URL=https://ton-backend.com
+```
+
+---
+
+## Ressources
 
 - [Documentation FastAPI](https://fastapi.tiangolo.com/)
-- [Documentation yfinance](https://pypi.org/project/yfinance/)
-- [Méthodologie Piotroski](https://en.wikipedia.org/wiki/Piotroski_F-score)
-- [Documentation Recharts](https://recharts.org/)
+- [yfinance](https://pypi.org/project/yfinance/)
+- [Piotroski F-Score — Wikipedia](https://en.wikipedia.org/wiki/Piotroski_F-score)
+- [Buffett Indicator — Wikipedia](https://en.wikipedia.org/wiki/Buffett_indicator)
+- [World Bank API](https://datahelpdesk.worldbank.org/knowledgebase/articles/889392)
+- [Recharts](https://recharts.org/)
 
 ---
 
-## 📄 Licence
+## Licence
 
-MIT License - Libre d'utilisation pour vos projets personnels et commerciaux.
+MIT — libre d'utilisation pour vos projets personnels et commerciaux.
