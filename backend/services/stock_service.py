@@ -226,6 +226,7 @@ class StockDataService:
         """
         balance_sheet: pd.DataFrame = getattr(stock, "balance_sheet", pd.DataFrame())
         income_stmt:   pd.DataFrame = getattr(stock, "financials", pd.DataFrame())
+        cashflow_stmt: pd.DataFrame = getattr(stock, "cashflow", pd.DataFrame())
         info:          dict         = getattr(stock, "info", {})
 
         _empty_result = {
@@ -244,11 +245,19 @@ class StockDataService:
         current_col = cols[0]
         prev_col    = cols[1] if len(cols) >= 2 else cols[0]
 
+        # Aligner les colonnes du bilan avec l'income statement (même année)
+        bs_cols = balance_sheet.columns
+        bs_current_col = bs_cols[0] if len(bs_cols) >= 1 else current_col
+        bs_prev_col    = bs_cols[1] if len(bs_cols) >= 2 else bs_current_col
+
         def bs(row: str, col) -> float:
             return StockDataService._safe_df_value(balance_sheet, row, col)
 
         def is_(row: str, col) -> float:
             return StockDataService._safe_df_value(income_stmt, row, col)
+
+        def cf(row: str, col) -> float:
+            return StockDataService._safe_df_value(cashflow_stmt, row, col)
 
         total_score   = 0
         profitability = []
@@ -264,69 +273,125 @@ class StockDataService:
 
         # ── Rentabilité ────────────────────────────────────────────────
 
-        total_assets_curr = max(bs("Total Assets", current_col), 1)
-        total_assets_prev = max(bs("Total Assets", prev_col), 1)
+        total_assets_curr = max(bs("Total Assets", bs_current_col), 1)
+        total_assets_prev = max(bs("Total Assets", bs_prev_col), 1)
         net_income_curr   = is_("Net Income", current_col)
         net_income_prev   = is_("Net Income", prev_col)
         roa_curr = net_income_curr / total_assets_curr
         roa_prev = net_income_prev / total_assets_prev
-        cfo      = StockDataService._safe_float(info.get("freeCashflow", 0))
+
+        # F2 & F4 : utiliser le cash flow opérationnel (pas le free cash flow)
+        # Essai sur le cashflow statement, fallback sur info.operatingCashflow
+        cfo = 0.0
+        if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
+            cfo = cf("Operating Cash Flow", current_col)
+            if cfo == 0:
+                cfo = cf("Cash From Operations", current_col)
+        if cfo == 0:
+            cfo = StockDataService._safe_float(info.get("operatingCashflow", 0))
+        if cfo == 0:
+            # Dernier recours : free cash flow (moins précis)
+            cfo = StockDataService._safe_float(info.get("freeCashflow", 0))
 
         add_criterion(profitability, "ROA positive",
                       roa_curr > 0,
-                      f"ROA={roa_curr:.2f}")
+                      f"ROA={roa_curr:.3f}")
 
         add_criterion(profitability, "Cash flow opérationnel positif",
                       cfo > 0,
-                      f"CFO={cfo:.2f}")
+                      f"CFO={cfo:,.0f}")
 
         add_criterion(profitability, "ROA en amélioration",
                       roa_curr > roa_prev,
-                      f"Précédent={roa_prev:.2f} | Actuel={roa_curr:.2f}")
+                      f"Précédent={roa_prev:.3f} | Actuel={roa_curr:.3f}")
 
-        add_criterion(profitability, "CFO > Bénéfice net",
+        add_criterion(profitability, "CFO > Bénéfice net (qualité bénéfices)",
                       cfo > net_income_curr,
-                      f"CFO={cfo:.2f} | NI={net_income_curr:.2f}")
+                      f"CFO={cfo:,.0f} | NI={net_income_curr:,.0f}")
 
         # ── Levier / Liquidité ─────────────────────────────────────────
 
-        ltd_curr = bs("Long Term Debt", current_col)
-        ltd_prev = bs("Long Term Debt", prev_col)
+        # Long-term debt : essayer plusieurs noms de ligne
+        def _get_ltd(col):
+            for row_name in ("Long Term Debt", "Long Term Debt And Capital Lease Obligation",
+                             "Long Term Debt And Due After One Year"):
+                val = bs(row_name, col)
+                if val != 0:
+                    return val
+            return 0.0
+
+        ltd_curr = _get_ltd(bs_current_col)
+        ltd_prev = _get_ltd(bs_prev_col)
         leverage_ratio_curr = ltd_curr / total_assets_curr
         leverage_ratio_prev = ltd_prev / total_assets_prev
-        current_ratio       = StockDataService._safe_float(info.get("currentRatio", 0))
-        shares_curr = bs("Ordinary Shares Number", current_col)
-        shares_prev = bs("Ordinary Shares Number", prev_col)
+
+        # F6 : current ratio AMÉLIORÉ (année en cours > année précédente)
+        curr_assets_curr = bs("Current Assets", bs_current_col)
+        curr_liab_curr   = bs("Current Liabilities", bs_current_col)
+        curr_assets_prev = bs("Current Assets", bs_prev_col)
+        curr_liab_prev   = bs("Current Liabilities", bs_prev_col)
+
+        cr_curr = (curr_assets_curr / curr_liab_curr) if curr_liab_curr > 0 else 0.0
+        cr_prev = (curr_assets_prev / curr_liab_prev) if curr_liab_prev > 0 else 0.0
+        # Fallback sur info si le bilan ne fournit pas les actifs courants
+        if cr_curr == 0:
+            cr_curr = StockDataService._safe_float(info.get("currentRatio", 0))
+
+        # F7 : dilution — essayer plusieurs sources
+        shares_curr = bs("Ordinary Shares Number", bs_current_col)
+        shares_prev = bs("Ordinary Shares Number", bs_prev_col)
+        if shares_curr == 0:
+            shares_curr = StockDataService._safe_float(info.get("sharesOutstanding", 0))
+        if shares_prev == 0:
+            # Approximation : shares_prev via cashflow statement (Issuance of Stock)
+            stock_issued = 0.0
+            if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
+                stock_issued = abs(cf("Issuance Of Stock", current_col))
+            shares_prev = shares_curr + stock_issued  # si émission positive => prev était plus bas
 
         add_criterion(leverage, "Levier en baisse",
                       leverage_ratio_curr < leverage_ratio_prev,
-                      f"Précédent={leverage_ratio_prev:.2f} | Actuel={leverage_ratio_curr:.2f}")
+                      f"Précédent={leverage_ratio_prev:.3f} | Actuel={leverage_ratio_curr:.3f}")
 
-        add_criterion(leverage, "Current ratio positif",
-                      current_ratio > 0,
-                      f"Ratio={current_ratio:.2f}")
+        add_criterion(leverage, "Current ratio en amélioration",
+                      cr_curr > cr_prev,
+                      f"Précédent={cr_prev:.2f} | Actuel={cr_curr:.2f}")
 
         add_criterion(leverage, "Pas de nouvelles actions émises",
                       shares_curr <= shares_prev,
-                      f"Précédent={shares_prev} | Actuel={shares_curr}")
+                      f"Précédent={shares_prev:,.0f} | Actuel={shares_curr:,.0f}")
 
         # ── Efficacité Opérationnelle ───────────────────────────────────
 
         revenue_curr = max(is_("Total Revenue", current_col), 1)
         revenue_prev = max(is_("Total Revenue", prev_col), 1)
 
-        gm_curr = is_("Gross Profit", current_col) / revenue_curr
-        gm_prev = is_("Gross Profit", prev_col)    / revenue_prev
+        # Gross Profit : essayer directement, sinon calculer via COGS
+        gross_profit_curr = is_("Gross Profit", current_col)
+        gross_profit_prev = is_("Gross Profit", prev_col)
+        if gross_profit_curr == 0:
+            cogs_curr = is_("Cost Of Revenue", current_col)
+            if cogs_curr == 0:
+                cogs_curr = is_("Reconciled Cost Of Revenue", current_col)
+            gross_profit_curr = revenue_curr - cogs_curr
+        if gross_profit_prev == 0:
+            cogs_prev = is_("Cost Of Revenue", prev_col)
+            if cogs_prev == 0:
+                cogs_prev = is_("Reconciled Cost Of Revenue", prev_col)
+            gross_profit_prev = revenue_prev - cogs_prev
+
+        gm_curr = gross_profit_curr / revenue_curr
+        gm_prev = gross_profit_prev / revenue_prev
         at_curr = revenue_curr / total_assets_curr
         at_prev = revenue_prev / total_assets_prev
 
         add_criterion(operating, "Marge brute en amélioration",
                       gm_curr > gm_prev,
-                      f"Précédent={gm_prev:.2f} | Actuel={gm_curr:.2f}")
+                      f"Précédent={gm_prev:.3f} | Actuel={gm_curr:.3f}")
 
         add_criterion(operating, "Rotation des actifs en amélioration",
                       at_curr > at_prev,
-                      f"Précédent={at_prev:.2f} | Actuel={at_curr:.2f}")
+                      f"Précédent={at_prev:.3f} | Actuel={at_curr:.3f}")
 
         # ── Interprétation ─────────────────────────────────────────────
 

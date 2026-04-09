@@ -1,15 +1,9 @@
 /**
- * App.jsx — Shell principal du StockDashboard.
- *
- * Responsabilités :
- * - Barre de recherche avec autocomplete
- * - En-tête société (nom, prix, variation)
- * - Navigation par onglets
- * - Routing vers les onglets : Overview, Financials, Piotroski, Buffett, Comparer
+ * App.jsx — Shell principal du StockDashboard Aurum Wealth.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Layers, BarChart3, Award, TrendingUp as BuffettIcon, GitCompare, Download } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Layers, BarChart3, Award, GitCompare, Download, Star } from 'lucide-react';
 
 import { useIsMobile }  from './hooks/Useismobile';
 import { useFavorites } from './hooks/useFavorites';
@@ -33,11 +27,64 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const TABS = [
   { id: 'overview',   label: "Vue d'ensemble", icon: Layers     },
-  { id: 'financials', label: 'Financiers',     icon: BarChart3  },
-  { id: 'piotroski',  label: 'Piotroski',      icon: Award      },
-  { id: 'buffett',    label: 'Buffett',         icon: BuffettIcon },
-  { id: 'compare',   label: 'Comparer',        icon: GitCompare },
+  { id: 'financials', label: 'Financiers',      icon: BarChart3  },
+  { id: 'piotroski',  label: 'Piotroski',       icon: Award      },
+  { id: 'buffett',    label: 'Buffett',          icon: TrendingUp },
+  { id: 'compare',    label: 'Comparer',         icon: GitCompare },
 ];
+
+const TICKER_DATA = [
+  { label: 'DJIA',    value: '39,127.14', change: '+0.38%', up: true  },
+  { label: 'S&P 500', value: '5,204.34',  change: '+0.24%', up: true  },
+  { label: 'NASDAQ',  value: '16,290.50', change: '-0.18%', up: false },
+  { label: 'EUR/USD', value: '1.0862',    change: '+0.12%', up: true  },
+  { label: 'Gold',    value: '2,338.60',  change: '+0.55%', up: true  },
+  { label: 'BTC',     value: '67,412.00', change: '-1.20%', up: false },
+  { label: 'Oil WTI', value: '83.42',     change: '+0.31%', up: true  },
+];
+
+// ---------------------------------------------------------------------------
+// Barre de ticker scrollante
+// ---------------------------------------------------------------------------
+
+const TickerBar = () => {
+  const items = [...TICKER_DATA, ...TICKER_DATA]; // doubler pour boucle infinie
+  return (
+    <div className={styles.tickerBar}>
+      <div className={styles.tickerTrack}>
+        {items.map((item, i) => (
+          <span key={i} className={styles.tickerItem}>
+            <span className={styles.tickerLabel}>{item.label}:</span>
+            <span className={styles.tickerValue}>{item.value}</span>
+            <span className={item.up ? styles.tickerUp : styles.tickerDown}>
+              ({item.change})
+            </span>
+            <span className={styles.tickerSep}>|</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Logo Aurum Wealth
+// ---------------------------------------------------------------------------
+
+const AurumLogo = () => (
+  <div className={styles.logo}>
+    <div className={styles.logoIcon}>
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <path d="M14 3L25 24H3L14 3Z" fill="none" stroke="#B8860B" strokeWidth="2.2" strokeLinejoin="round"/>
+        <path d="M9 17H19" stroke="#B8860B" strokeWidth="2" strokeLinecap="round"/>
+      </svg>
+    </div>
+    <div className={styles.logoText}>
+      <span className={styles.logoAurum}>AURUM</span>
+      <span className={styles.logoWealth}>WEALTH</span>
+    </div>
+  </div>
+);
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -64,13 +111,12 @@ const SkeletonDashboard = () => (
 
 const TabBar = ({ active, onChange }) => (
   <div className={styles.tabBar}>
-    {TABS.map(({ id, label, icon: Icon }) => (
+    {TABS.map(({ id, label }) => (
       <button
         key={id}
         onClick={() => onChange(id)}
         className={active === id ? styles.tabActive : styles.tab}
       >
-        <Icon size={14} />
         <span>{label}</span>
       </button>
     ))}
@@ -92,7 +138,7 @@ const StockDashboard = () => {
 
   const debounceRef = useRef(null);
   const isMobile    = useIsMobile();
-  const chartHeight = isMobile ? 200 : 280;
+  const chartHeight = isMobile ? 200 : 260;
   const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
 
   // ── Appels API ────────────────────────────────────────────────────────────
@@ -127,10 +173,8 @@ const StockDashboard = () => {
     }
   }, []);
 
-  // Chargement initial
   useEffect(() => { fetchAnalysis(ticker); }, [fetchAnalysis]);
 
-  // Nettoyage debounce
   useEffect(() => {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, []);
@@ -182,43 +226,55 @@ const StockDashboard = () => {
 
   return (
     <div className={styles.page}>
-      <div className={styles.container}>
+      {/* ── En-tête Aurum Wealth ──────────────────────────── */}
+      <header className={styles.header}>
+        <AurumLogo />
 
-        {/* ── Barre de recherche ───────────────────────────── */}
-        <div className={favorites.length > 0 ? styles.searchAreaTight : styles.searchAreaSpaced}>
-          <div className={styles.searchRow}>
-            <div className={styles.searchInputWrap}>
-              <input
-                type="text"
-                value={ticker}
-                onChange={handleTickerChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Ticker ou nom de société…"
-                className={styles.searchInput}
-              />
-
-              {(suggestions.length > 0 || suggestionsLoading) && (
-                <div className={styles.dropdown}>
-                  {suggestionsLoading && (
-                    <div className={styles.dropdownLoading}>Recherche…</div>
-                  )}
-                  {suggestions.map((s, idx) => (
-                    <div key={idx} className={styles.suggestion} onMouseDown={(e) => handleSuggestion(e, s.symbol)}>
-                      <span className={styles.suggestionSymbol}>{s.symbol}</span>
-                      <span className={styles.suggestionName}>{s.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button onClick={handleAnalyze} className={styles.searchBtn}>
-              Analyser
-            </button>
+        <div className={styles.headerSearch}>
+          <div className={styles.searchInputWrap}>
+            <Search size={16} className={styles.searchIcon} />
+            <input
+              type="text"
+              value={ticker}
+              onChange={handleTickerChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Ticker ou nom de société…"
+              className={styles.searchInput}
+            />
+            {(suggestions.length > 0 || suggestionsLoading) && (
+              <div className={styles.dropdown}>
+                {suggestionsLoading && (
+                  <div className={styles.dropdownLoading}>Recherche…</div>
+                )}
+                {suggestions.map((s, idx) => (
+                  <div key={idx} className={styles.suggestion} onMouseDown={(e) => handleSuggestion(e, s.symbol)}>
+                    <span className={styles.suggestionSymbol}>{s.symbol}</span>
+                    <span className={styles.suggestionName}>{s.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+          <button onClick={handleAnalyze} className={styles.searchBtn}>
+            Analyser
+          </button>
         </div>
 
-        {/* ── Barre de favoris ─────────────────────────────── */}
+        <nav className={styles.headerNav}>
+          <a href="#" className={styles.navLink}>Dashboard</a>
+          <a href="#" className={styles.navLink}>Portfolio</a>
+          <a href="#" className={styles.navLink}>Reports</a>
+          <a href="#" className={styles.navLink}>Profile</a>
+        </nav>
+      </header>
+
+      {/* ── Barre ticker ─────────────────────────────────── */}
+      <TickerBar />
+
+      {/* ── Contenu principal ────────────────────────────── */}
+      <div className={styles.container}>
+
+        {/* Barre de favoris */}
         {favorites.length > 0 && (
           <div className={styles.favBar}>
             {favorites.map((fav) => (
@@ -233,42 +289,40 @@ const StockDashboard = () => {
           </div>
         )}
 
-        {/* ── Contenu principal ────────────────────────────── */}
+        {/* Contenu */}
         {analysis && (
           <>
             {/* En-tête société */}
             <div className={styles.stockHeader}>
-              <div className={styles.headerBadges}>
-                {sector && <Badge label={sector}   color={sectorColor} />}
-                {market && <Badge label={market}   color="#64748b" />}
-                <Badge label={currency} color="#6366f1" />
-
-                <button
-                  onClick={() => toggleFavorite(analysis.ticker)}
-                  title={isFavorite(analysis.ticker) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                  className={isFavorite(analysis.ticker) ? styles.starBtnActive : styles.starBtn}
-                >
-                  {isFavorite(analysis.ticker) ? '★' : '☆'}
-                </button>
-
-                <button onClick={() => exportToCSV(analysis)} title="Exporter en CSV" className={styles.exportBtn}>
-                  <Download size={12} />
-                  CSV
-                </button>
-              </div>
-
               <h1 className={styles.stockName}>{name}</h1>
 
               <div className={styles.priceRow}>
                 <span className={styles.price}>{currencySymbol}{kpis.current_price}</span>
                 <span className={`${styles.priceChange} ${pricePositive ? styles.priceUp : styles.priceDown}`}>
-                  {pricePositive ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                  {pricePositive ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
                   {pricePositive ? '+' : ''}{kpis.price_change}%
                 </span>
               </div>
+
+              <div className={styles.headerBadges}>
+                {sector && <Badge label={sector}   color={sectorColor} />}
+                {market && <Badge label={market}   color="#64748b" />}
+                <Badge label={currency} color="#6366f1" />
+                <button
+                  onClick={() => toggleFavorite(analysis.ticker)}
+                  title={isFavorite(analysis.ticker) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                  className={isFavorite(analysis.ticker) ? styles.starBtnActive : styles.starBtn}
+                >
+                  <Star size={13} fill={isFavorite(analysis.ticker) ? 'currentColor' : 'none'} />
+                </button>
+                <button onClick={() => exportToCSV(analysis)} title="Exporter en CSV" className={styles.exportBtn}>
+                  <Download size={12} />
+                  CSV
+                </button>
+              </div>
             </div>
 
-            {/* Navigation */}
+            {/* Navigation par onglets */}
             <TabBar active={activeTab} onChange={setActiveTab} />
 
             {/* Onglets */}

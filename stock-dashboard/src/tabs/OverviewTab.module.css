@@ -1,20 +1,29 @@
-.kpiGrid {
+/* ── Rangée supérieure : Summary + Graphique ──────────────── */
+
+.topRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: 1fr 2fr;
+  gap: 20px;
+  margin-bottom: 28px;
+  animation: cardIn 0.4s ease 0.1s forwards;
+  opacity: 0;
 }
 
-.card {
+.summaryCard {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-2xl);
-  padding: 24px;
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-card);
 }
 
-.cardAnimated {
-  composes: card;
-  opacity: 0;
+.chartCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-card);
+  animation: cardIn 0.4s ease 0.15s forwards;
 }
 
 .cardHeader {
@@ -29,6 +38,7 @@
   font-weight: 700;
   font-size: 17px;
   color: var(--text-primary);
+  margin-bottom: 16px;
 }
 
 .cardUnit {
@@ -37,34 +47,131 @@
   font-family: var(--font-mono);
 }
 
-.metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0 40px;
+/* Executive Summary */
+
+.summaryList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
+.summaryItem {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-left: 18px;
+  position: relative;
+}
+
+.summaryItem::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--gold);
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+/* ── Section title ─────────────────────────────────────────── */
+
+.sectionTitle {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* ── KPI Cards ─────────────────────────────────────────────── */
+
+.kpiRow3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.kpiRow5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.kpiCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+  animation: cardIn 0.4s ease forwards;
+  opacity: 0;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.kpiCard:hover {
+  box-shadow: var(--shadow-drop);
+  transform: translateY(-1px);
+}
+
+.kpiHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.kpiIcon {
+  color: var(--border-strong);
+  flex-shrink: 0;
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+/* ── Responsive ────────────────────────────────────────────── */
+
 @media (max-width: 1024px) {
-  .card {
-    padding: 20px;
+  .kpiRow5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .topRow {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
-  .kpiGrid {
+  .kpiRow3 {
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
   }
 
-  .card {
+  .kpiRow5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .kpiValue {
+    font-size: 18px;
+  }
+
+  .summaryCard,
+  .chartCard {
     padding: 16px;
-  }
-
-  .cardTitle {
-    font-size: 15px;
-  }
-
-  .metricsGrid {
-    grid-template-columns: 1fr;
-    gap: 0;
   }
 }

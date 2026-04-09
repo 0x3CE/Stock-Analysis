@@ -1,59 +1,63 @@
 /* ============================================================
-   Design Tokens — Stock Dashboard
-   Source unique de vérité pour toutes les valeurs visuelles.
+   Design Tokens — Aurum Wealth Dashboard
+   Thème clair premium (crème / ivoire / marine)
    ============================================================ */
 
 :root {
   /* ── Arrière-plans ─────────────────────────────────────── */
-  --bg-base:     #0b0f1a;   /* Page / fond général          */
-  --bg-card:     #111827;   /* Cartes principales           */
-  --bg-surface:  #0d1117;   /* Inputs, dropdowns            */
-  --bg-elevated: #161b22;   /* Items au survol              */
-  --bg-muted:    #1e293b;   /* Badges neutres, icônes       */
+  --bg-base:     #F5F0E4;   /* Crème principal               */
+  --bg-card:     #FFFFFF;   /* Cartes blanches               */
+  --bg-surface:  #FFFFFF;   /* Inputs, dropdowns             */
+  --bg-elevated: #F8F4EC;   /* Items au survol               */
+  --bg-muted:    #EDE8DC;   /* Badges neutres                */
+  --bg-header:   #FFFFFF;   /* En-tête blanc                 */
+  --bg-ticker:   #1A2540;   /* Barre ticker sombre           */
 
   /* ── Bordures ──────────────────────────────────────────── */
-  --border-subtle:  #1e293b;  /* Cartes                     */
-  --border-default: #21262d;  /* Inputs                     */
-  --border-strong:  #334155;  /* Hover                      */
-  --border-divider: #1a2332;  /* Séparateurs de tableau     */
-  --border-section: #0f172a;  /* Lignes de tableau          */
+  --border-subtle:  #E8E2D4;
+  --border-default: #D8D2C4;
+  --border-strong:  #B5A98A;
+  --border-divider: #EDE8DC;
+  --border-section: #E8E2D4;
 
   /* ── Textes ────────────────────────────────────────────── */
-  --text-primary:   #f8fafc;  /* Titres principaux          */
-  --text-secondary: #e2e8f0;  /* Corps de texte             */
-  --text-muted:     #94a3b8;  /* Texte secondaire           */
-  --text-dim:       #64748b;  /* Labels, metadata           */
-  --text-faint:     #475569;  /* Très discret               */
-  --text-ghost:     #334155;  /* Footer, hints              */
+  --text-primary:   #1A1A1A;
+  --text-secondary: #2D2D2D;
+  --text-muted:     #555555;
+  --text-dim:       #777777;
+  --text-faint:     #999999;
+  --text-ghost:     #AAAAAA;
 
   /* ── Couleurs d'accentuation ───────────────────────────── */
-  --accent:         #2563eb;
-  --accent-hover:   #1d4ed8;
-  --accent-light:   #60a5fa;
-  --green:          #22c55e;
-  --red:            #ef4444;
-  --orange:         #f59e0b;
-  --purple:         #6366f1;
+  --accent:         #1B2B4B;   /* Marine foncé                */
+  --accent-hover:   #0F1D33;
+  --accent-light:   #2B4580;
+  --gold:           #B8860B;   /* Or Aurum                    */
+  --gold-light:     #C9A84C;
+  --green:          #16a34a;
+  --red:            #dc2626;
+  --orange:         #d97706;
+  --purple:         #7c3aed;
 
   /* ── Typographie ───────────────────────────────────────── */
   --font-sans:    'DM Sans', sans-serif;
   --font-mono:    'DM Mono', monospace;
-  --font-display: 'Syne', sans-serif;
+  --font-display: 'Playfair Display', serif;
 
   /* ── Bordures arrondies ─────────────────────────────────── */
-  --radius-sm:   8px;
-  --radius-md:   10px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
   --radius-lg:   12px;
   --radius-xl:   14px;
-  --radius-2xl:  16px;
+  --radius-2xl:  18px;
   --radius-full: 9999px;
 
   /* ── Ombres ────────────────────────────────────────────── */
-  --shadow-card:   0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-drop:   0 16px 40px rgba(0, 0, 0, 0.6);
-  --shadow-accent: 0 4px 14px rgba(37, 99, 235, 0.3);
+  --shadow-card:   0 2px 12px rgba(0, 0, 0, 0.07);
+  --shadow-drop:   0 8px 24px rgba(0, 0, 0, 0.10);
+  --shadow-accent: 0 4px 14px rgba(27, 43, 75, 0.30);
 
-  /* ── Breakpoints (pour usage dans JS si nécessaire) ────── */
+  /* ── Breakpoints ────────────────────────────────────────── */
   --bp-mobile:  640px;
   --bp-tablet: 1024px;
 

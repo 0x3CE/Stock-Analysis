@@ -1,9 +1,9 @@
 /* ============================================================
-   Global styles — Stock Dashboard
+   Global styles — Aurum Wealth Dashboard
    ============================================================ */
 
 @import './styles/tokens.css';
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Syne:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
 
 /* Reset */
 *,
@@ -22,9 +22,9 @@ html {
 }
 
 body {
-  background: #0b0f1a;
-  color: #e2e8f0;
-  font-family: 'DM Sans', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
 }
 
 /* Scrollbar */
@@ -32,10 +32,10 @@ body {
   width: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #0b0f1a;
+  background: var(--bg-base);
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: var(--border-default);
   border-radius: 4px;
 }
 
@@ -61,4 +61,9 @@ body {
   50% {
     opacity: 0.4;
   }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }

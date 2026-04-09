@@ -3,8 +3,7 @@ import {
 } from 'recharts';
 
 /**
- * StyledAreaChart — Graphique Area avec dégradé et style cohérent avec le design.
- * Utilisé dans OverviewTab et FinancialsTab.
+ * StyledAreaChart — Graphique Area avec dégradé, thème clair Aurum Wealth.
  */
 export const StyledAreaChart = ({
   data, dataKey, stroke, gradientId,
@@ -15,35 +14,36 @@ export const StyledAreaChart = ({
     <AreaChart data={data}>
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%"  stopColor={stroke} stopOpacity={0.2} />
+          <stop offset="5%"  stopColor={stroke} stopOpacity={0.15} />
           <stop offset="95%" stopColor={stroke} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <CartesianGrid strokeDasharray="3 3" stroke="#1a2332" />
+      <CartesianGrid strokeDasharray="3 3" stroke="#E8E2D4" />
       <XAxis
         dataKey={xDataKey}
-        stroke="#334155"
-        tick={{ fontSize: 11, fill: '#475569', fontFamily: 'DM Mono, monospace' }}
+        stroke="#D8D2C4"
+        tick={{ fontSize: 11, fill: '#999999', fontFamily: 'DM Mono, monospace' }}
       />
       <YAxis
-        stroke="#334155"
-        tick={{ fontSize: 11, fill: '#475569', fontFamily: 'DM Mono, monospace' }}
+        stroke="#D8D2C4"
+        tick={{ fontSize: 11, fill: '#999999', fontFamily: 'DM Mono, monospace' }}
         tickFormatter={yTickFormatter}
         domain={yDomain || ['auto', 'auto']}
       />
       <Tooltip
         contentStyle={{
-          background: '#0d1117', border: '1px solid #21262d',
+          background: '#FFFFFF', border: '1px solid #E8E2D4',
           borderRadius: '10px', fontFamily: 'DM Sans, sans-serif',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         }}
-        labelStyle={{ color: '#8b949e', fontSize: '12px' }}
+        labelStyle={{ color: '#777777', fontSize: '12px' }}
         formatter={tooltipFormatter}
       />
       <Area
         type="monotone" dataKey={dataKey} stroke={stroke} strokeWidth={2}
         fill={`url(#${gradientId})`}
         dot={{ r: 3, fill: stroke, strokeWidth: 0 }}
-        activeDot={{ r: 5, fill: stroke, stroke: '#0d1117', strokeWidth: 2 }}
+        activeDot={{ r: 5, fill: stroke, stroke: '#FFFFFF', strokeWidth: 2 }}
       />
     </AreaChart>
   </ResponsiveContainer>
