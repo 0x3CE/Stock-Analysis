@@ -123,13 +123,24 @@ async def analyze_stock(request: Request, input_str: str):
         piotroski = {"total_score": 0, "profitability": [], "leverage": [], "operating": [], "interpretation": "N/A"}
 
     try:
-        name = stock.info.get("longName") or stock.info.get("shortName") or symbol
+        info  = stock.info or {}
+        name  = info.get("longName") or info.get("shortName") or symbol
+        sector   = info.get("sector") or None
+        industry = info.get("industry") or None
+        market   = info.get("exchange") or info.get("market") or None
+        currency = info.get("currency") or "USD"
     except Exception:
         name = symbol
+        sector = industry = market = None
+        currency = "USD"
 
     result = {
         "ticker":                symbol,
         "name":                  name,
+        "sector":                sector,
+        "industry":              industry,
+        "market":                market,
+        "currency":              currency,
         "kpis":                  kpis,
         "historical_data":       historical,
         "piotroski_score":       piotroski,

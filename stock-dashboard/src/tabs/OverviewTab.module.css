@@ -1,3 +1,9 @@
+/* Keyframes définis localement pour éviter les conflits CSS Modules */
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Rangée supérieure : Summary + Graphique ──────────────── */
 
 .topRow {
@@ -5,8 +11,7 @@
   grid-template-columns: 1fr 2fr;
   gap: 20px;
   margin-bottom: 28px;
-  animation: cardIn 0.4s ease 0.1s forwards;
-  opacity: 0;
+  animation: cardIn 0.35s ease both;
 }
 
 .summaryCard {
@@ -108,8 +113,7 @@
   border-radius: var(--radius-xl);
   padding: 18px 20px;
   box-shadow: var(--shadow-card);
-  animation: cardIn 0.4s ease forwards;
-  opacity: 0;
+  animation: cardIn 0.35s ease both;
   transition: box-shadow 0.2s, transform 0.2s;
 }
 

@@ -72,9 +72,9 @@ const KpiMiniCard = ({ label, value, valueColor, icon: Icon, delay = 0 }) => (
 // OverviewTab
 // ---------------------------------------------------------------------------
 
-const OverviewTab = ({ kpis, historical_data, dividend_history, profit_margin_history, chartHeight }) => {
-  const recentPrices = historical_data.slice(-30);
-  const summaryPoints = buildSummaryPoints(kpis);
+const OverviewTab = ({ kpis = {}, historical_data = [], dividend_history = [], profit_margin_history = [], chartHeight }) => {
+  const recentPrices = (historical_data || []).slice(-30);
+  const summaryPoints = buildSummaryPoints(kpis || {});
 
   return (
     <div>

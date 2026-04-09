@@ -13,6 +13,21 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 import math
+import requests
+
+
+# Session HTTP partagée avec un User-Agent navigateur pour éviter
+# les blocages Yahoo Finance sur les serveurs cloud (Render, etc.)
+_YF_SESSION = requests.Session()
+_YF_SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -70,11 +85,15 @@ class StockDataService:
     def fetch_stock_info(ticker: str) -> yf.Ticker:
         """
         Instancie et valide un ticker yfinance.
+        Utilise une session avec User-Agent navigateur pour éviter les blocages cloud.
         Lève HTTP 404 si aucune donnée n'est disponible.
         """
-        stock = yf.Ticker(ticker)
+        stock = yf.Ticker(ticker, session=_YF_SESSION)
         try:
-            _ = stock.fast_info or stock.info
+            fast = stock.fast_info
+            # Vérification minimale : le ticker existe si on obtient un prix
+            if not fast or not getattr(fast, "last_price", None):
+                _ = stock.info  # fallback complet
         except Exception:
             raise HTTPException(
                 status_code=404,
