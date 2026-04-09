@@ -114,12 +114,65 @@
   padding: 18px 20px;
   box-shadow: var(--shadow-card);
   animation: cardIn 0.35s ease both;
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  position: relative; /* nécessaire pour le tooltip absolu */
 }
 
 .kpiCard:hover {
   box-shadow: var(--shadow-drop);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+}
+
+/* ── Tooltip CSS pur ────────────────────────────────────────── */
+
+/* Bulle */
+.kpiCard[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: #1A2540;
+  color: #dde4f0;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 10px 14px;
+  border-radius: 10px;
+  width: 220px;
+  white-space: normal;
+  text-align: left;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+/* Flèche */
+.kpiCard[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1A2540;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.kpiCard[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.kpiCard[data-tooltip]:hover::before {
+  opacity: 1;
 }
 
 .kpiHeader {

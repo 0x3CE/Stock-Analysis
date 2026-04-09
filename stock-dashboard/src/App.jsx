@@ -44,23 +44,56 @@ const TICKER_DATA = [
 ];
 
 // ---------------------------------------------------------------------------
-// Barre de ticker scrollante
+// Carousel de ticker (auto-advance + navigation par points)
 // ---------------------------------------------------------------------------
 
-const TickerBar = () => {
-  const items = [...TICKER_DATA, ...TICKER_DATA]; // doubler pour boucle infinie
+const CAROUSEL_VISIBLE = 4; // indices visibles simultanément
+
+const TickerCarousel = () => {
+  const [index, setIndex]   = useState(0);
+  const [paused, setPaused] = useState(false);
+  const total = TICKER_DATA.length;
+
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(() => setIndex(i => (i + 1) % total), 3000);
+    return () => clearInterval(id);
+  }, [paused, total]);
+
+  // Fenêtre glissante avec wrapping circulaire
+  const visible = Array.from(
+    { length: CAROUSEL_VISIBLE },
+    (_, k) => TICKER_DATA[(index + k) % total]
+  );
+
   return (
-    <div className={styles.tickerBar}>
-      <div className={styles.tickerTrack}>
-        {items.map((item, i) => (
-          <span key={i} className={styles.tickerItem}>
-            <span className={styles.tickerLabel}>{item.label}:</span>
+    <div
+      className={styles.tickerBar}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {/* Cartes visibles — la clé change à chaque index pour déclencher l'animation */}
+      <div className={styles.tickerSlide} key={index}>
+        {visible.map((item, i) => (
+          <div key={i} className={styles.tickerCard}>
+            <span className={styles.tickerLabel}>{item.label}</span>
             <span className={styles.tickerValue}>{item.value}</span>
             <span className={item.up ? styles.tickerUp : styles.tickerDown}>
-              ({item.change})
+              {item.change}
             </span>
-            <span className={styles.tickerSep}>|</span>
-          </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Points de navigation */}
+      <div className={styles.tickerDots}>
+        {TICKER_DATA.map((_, i) => (
+          <button
+            key={i}
+            className={i === index ? styles.dotActive : styles.dot}
+            onClick={() => setIndex(i)}
+            aria-label={TICKER_DATA[i].label}
+          />
         ))}
       </div>
     </div>
@@ -269,7 +302,7 @@ const StockDashboard = () => {
       </header>
 
       {/* ── Barre ticker ─────────────────────────────────── */}
-      <TickerBar />
+      <TickerCarousel />
 
       {/* ── Contenu principal ────────────────────────────── */}
       <div className={styles.container}>

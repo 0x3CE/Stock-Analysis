@@ -53,11 +53,30 @@ function buildSummaryPoints(kpis) {
 }
 
 // ---------------------------------------------------------------------------
-// KPI Mini Card
+// Textes explicatifs par métrique
+// ---------------------------------------------------------------------------
+
+const TOOLTIPS = {
+  '52W High':      'Prix le plus haut atteint sur les 52 dernières semaines. Constitue une résistance technique clé : un franchissement à la hausse est souvent haussier.',
+  '52W Low':       'Prix le plus bas atteint sur les 52 dernières semaines. Constitue un support technique : un franchissement à la baisse peut signaler une faiblesse.',
+  'Beta':          'Mesure la volatilité de l\'action par rapport au marché. Beta > 1 = plus volatile que l\'indice. Beta < 1 = plus stable. Beta < 0 = inversement corrélé.',
+  'ROE':           'Return on Equity — Rentabilité des capitaux propres. Indique l\'efficacité à générer des bénéfices pour les actionnaires. > 15% est généralement solide.',
+  'Debt / Equity': 'Ratio dette nette / capitaux propres. Mesure le levier financier de l\'entreprise. Un ratio élevé indique un endettement important et un risque accru.',
+  'Current Ratio': 'Ratio de liquidité courante (actifs / passifs courts termes). > 1 = l\'entreprise peut couvrir ses dettes à court terme. < 1 = risque de liquidité.',
+  'EPS':           'Earnings Per Share — Bénéfice net par action. Indique combien l\'entreprise gagne pour chaque action en circulation. Indicateur clé de rentabilité.',
+  'Profit Margin': 'Marge bénéficiaire nette. Pourcentage du chiffre d\'affaires converti en bénéfice net après toutes les charges. > 20% est généralement excellent.',
+};
+
+// ---------------------------------------------------------------------------
+// KPI Mini Card avec tooltip au survol
 // ---------------------------------------------------------------------------
 
 const KpiMiniCard = ({ label, value, valueColor, icon: Icon, delay = 0 }) => (
-  <div className={styles.kpiCard} style={{ animationDelay: `${delay}s` }}>
+  <div
+    className={styles.kpiCard}
+    style={{ animationDelay: `${delay}s` }}
+    data-tooltip={TOOLTIPS[label]}
+  >
     <div className={styles.kpiHeader}>
       <span className={styles.kpiLabel}>{label}</span>
       {Icon && <Icon size={16} className={styles.kpiIcon} />}

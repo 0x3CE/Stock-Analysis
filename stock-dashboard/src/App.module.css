@@ -201,27 +201,38 @@
   white-space: nowrap;
 }
 
-/* ── Barre ticker ────────────────────────────────────────── */
+/* ── Carousel ticker ─────────────────────────────────────── */
+
+@keyframes tickerSlideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 
 .tickerBar {
   background: var(--bg-ticker);
-  overflow: hidden;
-  white-space: nowrap;
-  height: 32px;
+  height: 44px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 0 24px;
+  overflow: hidden;
 }
 
-.tickerTrack {
-  display: inline-flex;
-  animation: marquee 40s linear infinite;
-}
-
-.tickerItem {
-  display: inline-flex;
+.tickerSlide {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: 32px;
+  flex: 1;
+  justify-content: center;
+  animation: tickerSlideIn 0.35s ease both;
+}
+
+.tickerCard {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
   font-size: 12px;
   font-family: var(--font-mono);
 }
@@ -233,7 +244,7 @@
 
 .tickerValue {
   color: #dde4f0;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .tickerUp {
@@ -244,9 +255,33 @@
   color: #f87171;
 }
 
-.tickerSep {
-  color: #334466;
-  margin-left: 8px;
+/* Dots de navigation */
+.tickerDots {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: none;
+  background: #2d4066;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.25s, transform 0.25s;
+}
+
+.dot:hover {
+  background: #5577aa;
+  transform: scale(1.2);
+}
+
+.dotActive {
+  composes: dot;
+  background: #8899cc;
+  transform: scale(1.3);
 }
 
 /* ── Container principal ─────────────────────────────────── */
