@@ -101,65 +101,65 @@ class StockDataService:
     @staticmethod
     def extract_kpis(stock: yf.Ticker) -> dict:
         """
-        Extrait les indicateurs financiers clés depuis info et fast_info.
-        Chaque accès est wrappé individuellement : une exception sur stock.info
-        (ex. YFRateLimitError) ne vide pas tout — on retombe sur fast_info.
-        Les valeurs manquantes sont retournées comme None.
+        Extrait les KPIs financiers.
+        Stratégie de résilience (Render / rate-limiting Yahoo Finance) :
+        1. fast_info  → year_high, year_low, currency, shares (jamais rate-limité)
+        2. info       → tout le reste (wrappé en try/except)
+        3. Les valeurs impossibles à obtenir restent None (le route handler
+           complète ensuite depuis l'historique)
         """
-        # --- info : accès sécurisé (getattr ne catch pas les exceptions de propriété) ---
+        sf = StockDataService._safe_float
+
+        # ── fast_info : attributs légers, sans last_price ──────────────────
+        fi_year_high = fi_year_low = fi_currency = fi_shares = fi_volume = None
+        try:
+            _fi = stock.fast_info
+            fi_year_high = getattr(_fi, "year_high",                  None)
+            fi_year_low  = getattr(_fi, "year_low",                   None)
+            fi_currency  = getattr(_fi, "currency",                   None)
+            fi_shares    = getattr(_fi, "shares",                     None)
+            fi_volume    = getattr(_fi, "three_month_average_volume", None)
+        except Exception:
+            pass  # fast_info indisponible — on continuera avec info seul
+
+        # ── info : accès sécurisé ───────────────────────────────────────────
         try:
             info: dict = stock.info or {}
         except Exception:
             info = {}
 
-        # --- fast_info : léger, évite d'accéder à last_price (déclenche history) ---
-        try:
-            _fi = stock.fast_info
-            fast: dict = {
-                "last_price":  None,   # intentionnellement non accédé
-                "currency":    getattr(_fi, "currency",    None),
-                "exchange":    getattr(_fi, "exchange",    None),
-                "market_cap":  None,   # dépend de last_price — on évite
-            }
-        except Exception:
-            fast = {}
-
-        def get(key: str, alt: str = None):
-            return StockDataService._get_field(info, fast, key, alt)
-
-        # Prix courant : info d'abord, puis fast_info.last_price en dernier recours
-        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
-        if not current_price:
-            try:
-                current_price = stock.fast_info.last_price  # appel réseau possible
-            except Exception:
-                current_price = None
-
+        # Prix courant (info en priorité)
+        current_price = (
+            info.get("currentPrice")
+            or info.get("regularMarketPrice")
+            or None   # fallback depuis historique dans la route
+        )
         prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
 
-        # Variation journalière en % (0 si données insuffisantes)
         if current_price and prev_close and prev_close != 0:
             price_change = (current_price - prev_close) / prev_close * 100
         else:
-            price_change = 0.0
+            price_change = None   # fallback dans la route
 
-        sf = StockDataService._safe_float
+        # 52W High/Low : fast_info fiable, sinon info
+        high_52w = fi_year_high or info.get("fiftyTwoWeekHigh")
+        low_52w  = fi_year_low  or info.get("fiftyTwoWeekLow")
 
         return {
-            "current_price": round(sf(current_price), 2),
-            "price_change": round(sf(price_change), 2),
-            "market_cap": round(sf(get("marketCap")) / MARKET_CAP_SCALE, 2),
-            "pe_ratio": round(sf(get("trailingPE")), 2) if get("trailingPE") else None,
-            "dividend_yield": round(sf(get("dividendYield")) * 100, 2) if get("dividendYield") else None,
-            "volume": round(sf(get("volume")) / VOLUME_SCALE, 2),
-            "high_52w": round(sf(get("fiftyTwoWeekHigh")), 2) if get("fiftyTwoWeekHigh") else None,
-            "low_52w": round(sf(get("fiftyTwoWeekLow")), 2)  if get("fiftyTwoWeekLow") else None,
-            "beta": round(sf(get("beta")), 2) if get("beta") else None,
-            "eps": round(sf(get("trailingEps")), 2) if get("trailingEps") else None,
-            "roe": round(sf(get("returnOnEquity")) * 100, 2) if get("returnOnEquity") else None,
-            "debt_to_equity": round(sf(get("debtToEquity")), 2) if get("debtToEquity") else None,
-            "current_ratio":  round(sf(get("currentRatio")), 2) if get("currentRatio") else None,
-            "profit_margin":  round(sf(get("profitMargins")) * 100, 2) if get("profitMargins") else None,
+            "current_price":  round(sf(current_price), 2) if current_price else None,
+            "price_change":   round(sf(price_change),  2) if price_change  else None,
+            "high_52w":       round(sf(high_52w),      2) if high_52w      else None,
+            "low_52w":        round(sf(low_52w),       2) if low_52w       else None,
+            "market_cap":     round(sf(info.get("marketCap")) / MARKET_CAP_SCALE, 2) if info.get("marketCap") else None,
+            "pe_ratio":       round(sf(info.get("trailingPE")),       2) if info.get("trailingPE")       else None,
+            "dividend_yield": round(sf(info.get("dividendYield")) * 100, 2) if info.get("dividendYield") else None,
+            "volume":         round(sf(info.get("volume", fi_volume) or 0) / VOLUME_SCALE, 2),
+            "beta":           round(sf(info.get("beta")),             2) if info.get("beta")             else None,
+            "eps":            round(sf(info.get("trailingEps")),      2) if info.get("trailingEps")      else None,
+            "roe":            round(sf(info.get("returnOnEquity")) * 100, 2) if info.get("returnOnEquity") else None,
+            "debt_to_equity": round(sf(info.get("debtToEquity")),    2) if info.get("debtToEquity")     else None,
+            "current_ratio":  round(sf(info.get("currentRatio")),    2) if info.get("currentRatio")     else None,
+            "profit_margin":  round(sf(info.get("profitMargins")) * 100, 2) if info.get("profitMargins") else None,
         }
 
     # ------------------------------------------------------------------

@@ -115,12 +115,21 @@ async def analyze_stock(request: Request, input_str: str):
         logger.exception("Erreur historique pour %s", symbol)
         historical = []
 
-    # Fallback prix depuis l'historique quand stock.info est rate-limité
-    if not kpis.get("current_price") and len(historical) >= 2:
-        last  = historical[-1]["price"]
-        prev  = historical[-2]["price"]
-        kpis["current_price"] = last
-        kpis["price_change"]  = round((last - prev) / prev * 100, 2) if prev else 0.0
+    # Fallback depuis l'historique quand stock.info est rate-limité
+    if historical:
+        prices = [h["price"] for h in historical]
+        # Prix courant
+        if not kpis.get("current_price") and len(historical) >= 1:
+            kpis["current_price"] = historical[-1]["price"]
+        # Variation jour J-1
+        if not kpis.get("price_change") and len(historical) >= 2:
+            last, prev = historical[-1]["price"], historical[-2]["price"]
+            kpis["price_change"] = round((last - prev) / prev * 100, 2) if prev else 0.0
+        # 52W High/Low (déjà fourni par fast_info, mais sécurité supplémentaire)
+        if not kpis.get("high_52w"):
+            kpis["high_52w"] = round(max(prices), 2)
+        if not kpis.get("low_52w"):
+            kpis["low_52w"] = round(min(prices), 2)
 
     try: dividend_history = StockDataService.get_dividend_history(stock)
     except Exception:
