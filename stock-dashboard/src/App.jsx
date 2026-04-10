@@ -113,8 +113,8 @@ const AurumLogo = () => (
       </svg>
     </div>
     <div className={styles.logoText}>
-      <span className={styles.logoAurum}>AURUM</span>
-      <span className={styles.logoWealth}>WEALTH</span>
+      <span className={styles.logoAurum}>Stock Analysis</span>
+      <span className={styles.logoWealth}>Dashboard</span>
     </div>
   </div>
 );
