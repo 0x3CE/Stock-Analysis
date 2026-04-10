@@ -15,10 +15,6 @@ from datetime import datetime
 import math
 
 
-# Note : yfinance 0.2.66+ gère sa propre session curl_cffi en interne.
-# Ne pas injecter de requests.Session — cela lève YFDataException.
-
-
 # ---------------------------------------------------------------------------
 # Constantes de configuration
 # ---------------------------------------------------------------------------
@@ -74,19 +70,11 @@ class StockDataService:
     def fetch_stock_info(ticker: str) -> yf.Ticker:
         """
         Instancie et valide un ticker yfinance.
-        Lève HTTP 404 si aucune donnée n'est disponible,
-        HTTP 429 si Yahoo Finance rate-limite la requête.
+        Lève HTTP 404 si aucune donnée n'est disponible.
         """
-        from yfinance.exceptions import YFRateLimitError
         stock = yf.Ticker(ticker)
         try:
-            # fast_info est léger — pas d'appel réseau supplémentaire
             _ = stock.fast_info or stock.info
-        except YFRateLimitError:
-            raise HTTPException(
-                status_code=429,
-                detail="Yahoo Finance limite les requêtes. Réessayez dans quelques secondes."
-            )
         except Exception:
             raise HTTPException(
                 status_code=404,
@@ -101,65 +89,41 @@ class StockDataService:
     @staticmethod
     def extract_kpis(stock: yf.Ticker) -> dict:
         """
-        Extrait les KPIs financiers.
-        Stratégie de résilience (Render / rate-limiting Yahoo Finance) :
-        1. fast_info  → year_high, year_low, currency, shares (jamais rate-limité)
-        2. info       → tout le reste (wrappé en try/except)
-        3. Les valeurs impossibles à obtenir restent None (le route handler
-           complète ensuite depuis l'historique)
+        Extrait les indicateurs financiers clés depuis info et fast_info.
+        Les valeurs manquantes sont retournées comme None pour indiquer l'absence de donnée.
         """
-        sf = StockDataService._safe_float
+        info: dict = getattr(stock, "info", {}) or {}
+        fast: dict = getattr(stock, "fast_info", {}) or {}
 
-        # ── fast_info : attributs légers, sans last_price ──────────────────
-        fi_year_high = fi_year_low = fi_currency = fi_shares = fi_volume = None
-        try:
-            _fi = stock.fast_info
-            fi_year_high = getattr(_fi, "year_high",                  None)
-            fi_year_low  = getattr(_fi, "year_low",                   None)
-            fi_currency  = getattr(_fi, "currency",                   None)
-            fi_shares    = getattr(_fi, "shares",                     None)
-            fi_volume    = getattr(_fi, "three_month_average_volume", None)
-        except Exception:
-            pass  # fast_info indisponible — on continuera avec info seul
+        def get(key: str, alt: str = None):
+            return StockDataService._get_field(info, fast, key, alt)
 
-        # ── info : accès sécurisé ───────────────────────────────────────────
-        try:
-            info: dict = stock.info or {}
-        except Exception:
-            info = {}
+        current_price = get("currentPrice", "last_price")
+        prev_close = get("previousClose", "last_price")
 
-        # Prix courant (info en priorité)
-        current_price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-            or None   # fallback depuis historique dans la route
-        )
-        prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
-
+        # Variation journalière en % (0 si données insuffisantes)
         if current_price and prev_close and prev_close != 0:
             price_change = (current_price - prev_close) / prev_close * 100
         else:
-            price_change = None   # fallback dans la route
+            price_change = 0.0
 
-        # 52W High/Low : fast_info fiable, sinon info
-        high_52w = fi_year_high or info.get("fiftyTwoWeekHigh")
-        low_52w  = fi_year_low  or info.get("fiftyTwoWeekLow")
+        sf = StockDataService._safe_float
 
         return {
-            "current_price":  round(sf(current_price), 2) if current_price else None,
-            "price_change":   round(sf(price_change),  2) if price_change  else None,
-            "high_52w":       round(sf(high_52w),      2) if high_52w      else None,
-            "low_52w":        round(sf(low_52w),       2) if low_52w       else None,
-            "market_cap":     round(sf(info.get("marketCap")) / MARKET_CAP_SCALE, 2) if info.get("marketCap") else None,
-            "pe_ratio":       round(sf(info.get("trailingPE")),       2) if info.get("trailingPE")       else None,
-            "dividend_yield": round(sf(info.get("dividendYield")) * 100, 2) if info.get("dividendYield") else None,
-            "volume":         round(sf(info.get("volume", fi_volume) or 0) / VOLUME_SCALE, 2),
-            "beta":           round(sf(info.get("beta")),             2) if info.get("beta")             else None,
-            "eps":            round(sf(info.get("trailingEps")),      2) if info.get("trailingEps")      else None,
-            "roe":            round(sf(info.get("returnOnEquity")) * 100, 2) if info.get("returnOnEquity") else None,
-            "debt_to_equity": round(sf(info.get("debtToEquity")),    2) if info.get("debtToEquity")     else None,
-            "current_ratio":  round(sf(info.get("currentRatio")),    2) if info.get("currentRatio")     else None,
-            "profit_margin":  round(sf(info.get("profitMargins")) * 100, 2) if info.get("profitMargins") else None,
+            "current_price": round(sf(current_price), 2),
+            "price_change": round(sf(price_change), 2),
+            "market_cap": round(sf(get("marketCap")) / MARKET_CAP_SCALE, 2),
+            "pe_ratio": round(sf(get("trailingPE")), 2) if get("trailingPE") else None,
+            "dividend_yield": round(sf(get("dividendYield")) * 100, 2) if get("dividendYield") else None,
+            "volume": round(sf(get("volume")) / VOLUME_SCALE, 2),
+            "high_52w": round(sf(get("fiftyTwoWeekHigh")), 2) if get("fiftyTwoWeekHigh") else None,
+            "low_52w": round(sf(get("fiftyTwoWeekLow")), 2)  if get("fiftyTwoWeekLow") else None,
+            "beta": round(sf(get("beta")), 2) if get("beta") else None,
+            "eps": round(sf(get("trailingEps")), 2) if get("trailingEps") else None,
+            "roe": round(sf(get("returnOnEquity")) * 100, 2) if get("returnOnEquity") else None,
+            "debt_to_equity": round(sf(get("debtToEquity")), 2) if get("debtToEquity") else None,
+            "current_ratio":  round(sf(get("currentRatio")), 2) if get("currentRatio") else None,
+            "profit_margin":  round(sf(get("profitMargins")) * 100, 2) if get("profitMargins") else None,
         }
 
     # ------------------------------------------------------------------
@@ -281,7 +245,7 @@ class StockDataService:
         current_col = cols[0]
         prev_col    = cols[1] if len(cols) >= 2 else cols[0]
 
-        # Aligner les colonnes du bilan avec l'income statement (même année)
+        # Aligner les colonnes du bilan avec l'income statement
         bs_cols = balance_sheet.columns
         bs_current_col = bs_cols[0] if len(bs_cols) >= 1 else current_col
         bs_prev_col    = bs_cols[1] if len(bs_cols) >= 2 else bs_current_col
@@ -301,7 +265,6 @@ class StockDataService:
         operating     = []
 
         def add_criterion(category: list, criterion: str, passed: bool, detail: str):
-            """Ajoute un critère évalué à la catégorie concernée et met à jour le score."""
             nonlocal total_score
             score = 1 if passed else 0
             total_score += score
@@ -316,8 +279,7 @@ class StockDataService:
         roa_curr = net_income_curr / total_assets_curr
         roa_prev = net_income_prev / total_assets_prev
 
-        # F2 & F4 : utiliser le cash flow opérationnel (pas le free cash flow)
-        # Essai sur le cashflow statement, fallback sur info.operatingCashflow
+        # CFO : cashflow statement en priorité, fallback sur info.operatingCashflow
         cfo = 0.0
         if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
             cfo = cf("Operating Cash Flow", current_col)
@@ -326,7 +288,6 @@ class StockDataService:
         if cfo == 0:
             cfo = StockDataService._safe_float(info.get("operatingCashflow", 0))
         if cfo == 0:
-            # Dernier recours : free cash flow (moins précis)
             cfo = StockDataService._safe_float(info.get("freeCashflow", 0))
 
         add_criterion(profitability, "ROA positive",
@@ -347,7 +308,6 @@ class StockDataService:
 
         # ── Levier / Liquidité ─────────────────────────────────────────
 
-        # Long-term debt : essayer plusieurs noms de ligne
         def _get_ltd(col):
             for row_name in ("Long Term Debt", "Long Term Debt And Capital Lease Obligation",
                              "Long Term Debt And Due After One Year"):
@@ -361,7 +321,7 @@ class StockDataService:
         leverage_ratio_curr = ltd_curr / total_assets_curr
         leverage_ratio_prev = ltd_prev / total_assets_prev
 
-        # F6 : current ratio AMÉLIORÉ (année en cours > année précédente)
+        # F6 : current ratio amélioré (YoY)
         curr_assets_curr = bs("Current Assets", bs_current_col)
         curr_liab_curr   = bs("Current Liabilities", bs_current_col)
         curr_assets_prev = bs("Current Assets", bs_prev_col)
@@ -369,21 +329,19 @@ class StockDataService:
 
         cr_curr = (curr_assets_curr / curr_liab_curr) if curr_liab_curr > 0 else 0.0
         cr_prev = (curr_assets_prev / curr_liab_prev) if curr_liab_prev > 0 else 0.0
-        # Fallback sur info si le bilan ne fournit pas les actifs courants
         if cr_curr == 0:
             cr_curr = StockDataService._safe_float(info.get("currentRatio", 0))
 
-        # F7 : dilution — essayer plusieurs sources
+        # F7 : dilution
         shares_curr = bs("Ordinary Shares Number", bs_current_col)
         shares_prev = bs("Ordinary Shares Number", bs_prev_col)
         if shares_curr == 0:
             shares_curr = StockDataService._safe_float(info.get("sharesOutstanding", 0))
         if shares_prev == 0:
-            # Approximation : shares_prev via cashflow statement (Issuance of Stock)
             stock_issued = 0.0
             if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
                 stock_issued = abs(cf("Issuance Of Stock", current_col))
-            shares_prev = shares_curr + stock_issued  # si émission positive => prev était plus bas
+            shares_prev = shares_curr + stock_issued
 
         add_criterion(leverage, "Levier en baisse",
                       leverage_ratio_curr < leverage_ratio_prev,
@@ -402,18 +360,13 @@ class StockDataService:
         revenue_curr = max(is_("Total Revenue", current_col), 1)
         revenue_prev = max(is_("Total Revenue", prev_col), 1)
 
-        # Gross Profit : essayer directement, sinon calculer via COGS
         gross_profit_curr = is_("Gross Profit", current_col)
         gross_profit_prev = is_("Gross Profit", prev_col)
         if gross_profit_curr == 0:
-            cogs_curr = is_("Cost Of Revenue", current_col)
-            if cogs_curr == 0:
-                cogs_curr = is_("Reconciled Cost Of Revenue", current_col)
+            cogs_curr = is_("Cost Of Revenue", current_col) or is_("Reconciled Cost Of Revenue", current_col)
             gross_profit_curr = revenue_curr - cogs_curr
         if gross_profit_prev == 0:
-            cogs_prev = is_("Cost Of Revenue", prev_col)
-            if cogs_prev == 0:
-                cogs_prev = is_("Reconciled Cost Of Revenue", prev_col)
+            cogs_prev = is_("Cost Of Revenue", prev_col) or is_("Reconciled Cost Of Revenue", prev_col)
             gross_profit_prev = revenue_prev - cogs_prev
 
         gm_curr = gross_profit_curr / revenue_curr
