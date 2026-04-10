@@ -90,16 +90,23 @@ class StockDataService:
     def extract_kpis(stock: yf.Ticker) -> dict:
         """
         Extrait les indicateurs financiers clés depuis info et fast_info.
-        Les valeurs manquantes sont retournées comme None pour indiquer l'absence de donnée.
+        Si stock.info est rate-limité (cloud IPs), calcule les métriques
+        fondamentales depuis le bilan et le compte de résultat en fallback.
         """
-        info: dict = getattr(stock, "info", {}) or {}
-        fast: dict = getattr(stock, "fast_info", {}) or {}
+        try:
+            info: dict = stock.info or {}
+        except Exception:
+            info = {}
+        try:
+            fast = stock.fast_info or {}
+        except Exception:
+            fast = {}
 
         def get(key: str, alt: str = None):
             return StockDataService._get_field(info, fast, key, alt)
 
         current_price = get("currentPrice", "last_price")
-        prev_close = get("previousClose", "last_price")
+        prev_close    = get("previousClose", "previous_close")
 
         # Variation journalière en % (0 si données insuffisantes)
         if current_price and prev_close and prev_close != 0:
@@ -109,21 +116,82 @@ class StockDataService:
 
         sf = StockDataService._safe_float
 
+        # Métriques fondamentales depuis info (endpoint quoteSummary)
+        roe_raw       = get("returnOnEquity")
+        d_e_raw       = get("debtToEquity")
+        cr_raw        = get("currentRatio")
+        pm_raw        = get("profitMargins")
+        eps_raw       = get("trailingEps")
+        beta_raw      = get("beta")
+        div_yield_raw = get("dividendYield")
+        pe_raw        = get("trailingPE")
+
+        # ── Fallback depuis états financiers si info est vide (rate limit) ──
+        if not any([roe_raw, d_e_raw, cr_raw, pm_raw, eps_raw]):
+            try:
+                bs  = getattr(stock, "balance_sheet", pd.DataFrame())
+                is_ = getattr(stock, "financials",    pd.DataFrame())
+                if not bs.empty and not is_.empty:
+                    bc  = bs.columns[0]
+                    ic  = is_.columns[0]
+                    sdf = StockDataService._safe_df_value
+
+                    net_income = sdf(is_, "Net Income",    ic)
+                    revenue    = sdf(is_, "Total Revenue",  ic)
+
+                    equity = sdf(bs, "Stockholders Equity", bc)
+                    if equity == 0:
+                        equity = sdf(bs, "Total Equity Gross Minority Interest", bc)
+
+                    curr_assets = sdf(bs, "Current Assets",      bc)
+                    curr_liab   = sdf(bs, "Current Liabilities",  bc)
+
+                    ltd = sdf(bs, "Long Term Debt", bc)
+                    if ltd == 0:
+                        ltd = sdf(bs, "Long Term Debt And Capital Lease Obligation", bc)
+                    std = sdf(bs, "Current Debt", bc)
+                    if std == 0:
+                        std = sdf(bs, "Short Term Debt", bc)
+                    total_debt = ltd + std
+
+                    shares = sf(fast.get("shares") or 0)
+                    if shares == 0:
+                        shares = sdf(bs, "Ordinary Shares Number", bc)
+
+                    if equity != 0:
+                        if net_income:
+                            roe_raw = net_income / equity
+                        if total_debt:
+                            d_e_raw = total_debt / equity * 100
+                    if curr_liab > 0:
+                        cr_raw = curr_assets / curr_liab
+                    if revenue != 0 and net_income:
+                        pm_raw = net_income / revenue
+                    if shares != 0 and net_income:
+                        eps_raw = net_income / shares
+                    if not pe_raw and eps_raw and sf(eps_raw) != 0 and current_price:
+                        pe_raw = sf(current_price) / sf(eps_raw)
+            except Exception:
+                pass  # Fallback silencieux
+
+        high_52w_val = get("fiftyTwoWeekHigh", "year_high")
+        low_52w_val  = get("fiftyTwoWeekLow",  "year_low")
+
         return {
-            "current_price": round(sf(current_price), 2),
-            "price_change": round(sf(price_change), 2),
-            "market_cap": round(sf(get("marketCap")) / MARKET_CAP_SCALE, 2),
-            "pe_ratio": round(sf(get("trailingPE")), 2) if get("trailingPE") else None,
-            "dividend_yield": round(sf(get("dividendYield")) * 100, 2) if get("dividendYield") else None,
-            "volume": round(sf(get("volume")) / VOLUME_SCALE, 2),
-            "high_52w": round(sf(get("fiftyTwoWeekHigh")), 2) if get("fiftyTwoWeekHigh") else None,
-            "low_52w": round(sf(get("fiftyTwoWeekLow")), 2)  if get("fiftyTwoWeekLow") else None,
-            "beta": round(sf(get("beta")), 2) if get("beta") else None,
-            "eps": round(sf(get("trailingEps")), 2) if get("trailingEps") else None,
-            "roe": round(sf(get("returnOnEquity")) * 100, 2) if get("returnOnEquity") else None,
-            "debt_to_equity": round(sf(get("debtToEquity")), 2) if get("debtToEquity") else None,
-            "current_ratio":  round(sf(get("currentRatio")), 2) if get("currentRatio") else None,
-            "profit_margin":  round(sf(get("profitMargins")) * 100, 2) if get("profitMargins") else None,
+            "current_price":  round(sf(current_price), 2),
+            "price_change":   round(sf(price_change), 2),
+            "market_cap":     round(sf(get("marketCap", "market_cap")) / MARKET_CAP_SCALE, 2),
+            "pe_ratio":       round(sf(pe_raw), 2)              if pe_raw       else None,
+            "dividend_yield": round(sf(div_yield_raw) * 100, 2) if div_yield_raw else None,
+            "volume":         round(sf(get("volume", "day_volume")) / VOLUME_SCALE, 2),
+            "high_52w":       round(sf(high_52w_val), 2)        if high_52w_val else None,
+            "low_52w":        round(sf(low_52w_val),  2)        if low_52w_val  else None,
+            "beta":           round(sf(beta_raw), 2)            if beta_raw     else None,
+            "eps":            round(sf(eps_raw), 2)             if eps_raw      else None,
+            "roe":            round(sf(roe_raw) * 100, 2)       if roe_raw      else None,
+            "debt_to_equity": round(sf(d_e_raw), 2)             if d_e_raw      else None,
+            "current_ratio":  round(sf(cr_raw), 2)              if cr_raw       else None,
+            "profit_margin":  round(sf(pm_raw) * 100, 2)        if pm_raw       else None,
         }
 
     # ------------------------------------------------------------------
@@ -227,7 +295,10 @@ class StockDataService:
         balance_sheet: pd.DataFrame = getattr(stock, "balance_sheet", pd.DataFrame())
         income_stmt:   pd.DataFrame = getattr(stock, "financials", pd.DataFrame())
         cashflow_stmt: pd.DataFrame = getattr(stock, "cashflow", pd.DataFrame())
-        info:          dict         = getattr(stock, "info", {})
+        try:
+            info: dict = stock.info or {}
+        except Exception:
+            info = {}
 
         _empty_result = {
             "total_score":    0,
@@ -237,7 +308,7 @@ class StockDataService:
             "interpretation": "N/A",
         }
 
-        if balance_sheet.empty or income_stmt.empty or not info:
+        if balance_sheet.empty or income_stmt.empty:
             return _empty_result
 
         # Colonnes : année courante vs précédente
