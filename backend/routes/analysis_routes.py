@@ -86,15 +86,23 @@ async def analyze_stock(request: Request, input_str: str):
 
     try:
         stock = StockDataService.fetch_stock_info(symbol)
-    except HTTPException:
+    except HTTPException as exc:
+        # Propager 429 (rate limit) directement — ne pas tenter de fallback
+        if exc.status_code == 429:
+            raise
+        # 404 : tentative de résolution via la recherche yfinance
         try:
-            results = yf.search(input_str.strip())
+            search_obj = YFSearch(input_str.strip(), max_results=3)
+            res = search_obj.search()
+            quotes = getattr(res, "quotes", None) or []
+            if not quotes:
+                raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{symbol}'")
+            symbol = quotes[0].get("symbol", symbol)
+        except HTTPException:
+            raise
         except Exception:
             logger.exception("Erreur recherche fallback pour : %s", input_str)
-            raise HTTPException(status_code=500, detail="Erreur lors de la recherche")
-        if not results:
             raise HTTPException(status_code=404, detail=f"Aucune action trouvée pour '{symbol}'")
-        symbol = results[0].get("symbol")
         stock = StockDataService.fetch_stock_info(symbol)
 
     try: kpis = StockDataService.extract_kpis(stock)

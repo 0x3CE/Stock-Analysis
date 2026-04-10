@@ -74,15 +74,19 @@ class StockDataService:
     def fetch_stock_info(ticker: str) -> yf.Ticker:
         """
         Instancie et valide un ticker yfinance.
-        Utilise une session avec User-Agent navigateur pour éviter les blocages cloud.
-        Lève HTTP 404 si aucune donnée n'est disponible.
+        Lève HTTP 404 si aucune donnée n'est disponible,
+        HTTP 429 si Yahoo Finance rate-limite la requête.
         """
+        from yfinance.exceptions import YFRateLimitError
         stock = yf.Ticker(ticker)
         try:
-            fast = stock.fast_info
-            # Vérification minimale : le ticker existe si on obtient un prix
-            if not fast or not getattr(fast, "last_price", None):
-                _ = stock.info  # fallback complet
+            # fast_info est léger — pas d'appel réseau supplémentaire
+            _ = stock.fast_info or stock.info
+        except YFRateLimitError:
+            raise HTTPException(
+                status_code=429,
+                detail="Yahoo Finance limite les requêtes. Réessayez dans quelques secondes."
+            )
         except Exception:
             raise HTTPException(
                 status_code=404,

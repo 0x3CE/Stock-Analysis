@@ -6,3 +6,4 @@ python-dotenv==1.1.1
 httpx>=0.24.1,<1.0
 slowapi==0.1.9
 cachetools==5.5.2
+curl_cffi>=0.7.0
