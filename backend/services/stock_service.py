@@ -102,16 +102,40 @@ class StockDataService:
     def extract_kpis(stock: yf.Ticker) -> dict:
         """
         Extrait les indicateurs financiers clés depuis info et fast_info.
-        Les valeurs manquantes sont retournées comme None pour indiquer l'absence de donnée.
+        Chaque accès est wrappé individuellement : une exception sur stock.info
+        (ex. YFRateLimitError) ne vide pas tout — on retombe sur fast_info.
+        Les valeurs manquantes sont retournées comme None.
         """
-        info: dict = getattr(stock, "info", {}) or {}
-        fast: dict = getattr(stock, "fast_info", {}) or {}
+        # --- info : accès sécurisé (getattr ne catch pas les exceptions de propriété) ---
+        try:
+            info: dict = stock.info or {}
+        except Exception:
+            info = {}
+
+        # --- fast_info : léger, évite d'accéder à last_price (déclenche history) ---
+        try:
+            _fi = stock.fast_info
+            fast: dict = {
+                "last_price":  None,   # intentionnellement non accédé
+                "currency":    getattr(_fi, "currency",    None),
+                "exchange":    getattr(_fi, "exchange",    None),
+                "market_cap":  None,   # dépend de last_price — on évite
+            }
+        except Exception:
+            fast = {}
 
         def get(key: str, alt: str = None):
             return StockDataService._get_field(info, fast, key, alt)
 
-        current_price = get("currentPrice", "last_price")
-        prev_close = get("previousClose", "last_price")
+        # Prix courant : info d'abord, puis fast_info.last_price en dernier recours
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+        if not current_price:
+            try:
+                current_price = stock.fast_info.last_price  # appel réseau possible
+            except Exception:
+                current_price = None
+
+        prev_close = info.get("previousClose") or info.get("regularMarketPreviousClose")
 
         # Variation journalière en % (0 si données insuffisantes)
         if current_price and prev_close and prev_close != 0:
