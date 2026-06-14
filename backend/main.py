@@ -11,7 +11,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from core.config import settings
 from core.limiter import limiter
-from routes import analysis_routes, health_routes, buffet_routes
+from routes import analysis_routes, health_routes, buffet_routes, market_routes
 
 # === Configuration FastAPI ===
 app = FastAPI(
@@ -37,3 +37,4 @@ app.add_middleware(
 app.include_router(health_routes.router)
 app.include_router(analysis_routes.router)
 app.include_router(buffet_routes.router)
+app.include_router(market_routes.router)

@@ -33,14 +33,14 @@ const TABS = [
   { id: 'compare',    label: 'Comparer',         icon: GitCompare },
 ];
 
-const TICKER_DATA = [
-  { label: 'DJIA',    value: '39,127.14', change: '+0.38%', up: true  },
-  { label: 'S&P 500', value: '5,204.34',  change: '+0.24%', up: true  },
-  { label: 'NASDAQ',  value: '16,290.50', change: '-0.18%', up: false },
-  { label: 'EUR/USD', value: '1.0862',    change: '+0.12%', up: true  },
-  { label: 'Gold',    value: '2,338.60',  change: '+0.55%', up: true  },
-  { label: 'BTC',     value: '67,412.00', change: '-1.20%', up: false },
-  { label: 'Oil WTI', value: '83.42',     change: '+0.31%', up: true  },
+const TICKER_FALLBACK = [
+  { label: 'DJIA',    value: '—', change: '—', up: true  },
+  { label: 'S&P 500', value: '—', change: '—', up: true  },
+  { label: 'NASDAQ',  value: '—', change: '—', up: false },
+  { label: 'EUR/USD', value: '—', change: '—', up: true  },
+  { label: 'Gold',    value: '—', change: '—', up: true  },
+  { label: 'BTC',     value: '—', change: '—', up: false },
+  { label: 'Oil WTI', value: '—', change: '—', up: true  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -50,9 +50,27 @@ const TICKER_DATA = [
 const CAROUSEL_VISIBLE = 4; // indices visibles simultanément
 
 const TickerCarousel = () => {
-  const [index, setIndex]   = useState(0);
-  const [paused, setPaused] = useState(false);
-  const total = TICKER_DATA.length;
+  const [tickerData, setTickerData] = useState(TICKER_FALLBACK);
+  const [index, setIndex]           = useState(0);
+  const [paused, setPaused]         = useState(false);
+  const total = tickerData.length;
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const resp = await fetch(`${API_URL}/api/market-snapshot`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data) && data.length > 0) setTickerData(data);
+        }
+      } catch {
+        // Garder les données de fallback
+      }
+    };
+    load();
+    const refreshId = setInterval(load, 60_000);
+    return () => clearInterval(refreshId);
+  }, []);
 
   useEffect(() => {
     if (paused) return;
@@ -63,7 +81,7 @@ const TickerCarousel = () => {
   // Fenêtre glissante avec wrapping circulaire
   const visible = Array.from(
     { length: CAROUSEL_VISIBLE },
-    (_, k) => TICKER_DATA[(index + k) % total]
+    (_, k) => tickerData[(index + k) % total]
   );
 
   return (
@@ -87,12 +105,12 @@ const TickerCarousel = () => {
 
       {/* Points de navigation */}
       <div className={styles.tickerDots}>
-        {TICKER_DATA.map((_, i) => (
+        {tickerData.map((item, i) => (
           <button
             key={i}
             className={i === index ? styles.dotActive : styles.dot}
             onClick={() => setIndex(i)}
-            aria-label={TICKER_DATA[i].label}
+            aria-label={item.label}
           />
         ))}
       </div>
