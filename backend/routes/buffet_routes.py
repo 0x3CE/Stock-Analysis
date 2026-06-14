@@ -13,11 +13,15 @@ import logging
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from cachetools import TTLCache
 from core.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
+
+# Les données World Bank sont annuelles — cache 1 heure
+_buffett_cache: TTLCache = TTLCache(maxsize=1, ttl=3600)
 
 # ---------------------------------------------------------------------------
 # Seuils d'interprétation
@@ -32,7 +36,6 @@ THRESHOLDS = [
 ]
 
 def interpret(ratio: float) -> dict:
-    """Retourne label, couleur et message selon le ratio."""
     for threshold, label, color, message in THRESHOLDS:
         if ratio < threshold:
             return {"label": label, "color": color, "message": message}
@@ -46,18 +49,28 @@ async def fetch_world_bank(client: httpx.AsyncClient, indicator: str, country_co
     """
     Récupère la dernière valeur annuelle disponible d'un indicateur Banque Mondiale.
     Interroge les 5 dernières années pour trouver une valeur non nulle.
+    Retry automatique en cas de timeout ou d'erreur réseau.
     """
     url = f"https://api.worldbank.org/v2/country/{country_code}/indicator/{indicator}"
     params = {"format": "json", "mrv": 5, "per_page": 5}
-    resp = await client.get(url, params=params, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-    if not data or len(data) < 2:
-        return None
-    for entry in data[1]:
-        if entry.get("value"):
-            return float(entry["value"])
-    return None
+
+    for attempt in range(2):
+        try:
+            resp = await client.get(url, params=params, timeout=25)
+            resp.raise_for_status()
+            data = resp.json()
+            if not data or len(data) < 2:
+                return None
+            for entry in data[1]:
+                if entry.get("value"):
+                    return float(entry["value"])
+            return None
+        except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            if attempt == 0:
+                logger.warning("Retry %s/%s (attempt %d): %s", indicator, country_code, attempt + 1, exc)
+                await asyncio.sleep(1)
+            else:
+                raise
 
 
 async def fetch_country(
@@ -68,12 +81,11 @@ async def fetch_country(
 ) -> dict:
     """
     Construit le Buffett Indicator pour un pays.
-    Retourne un dict avec ratio, market_cap, gdp et interprétation.
+    Les deux indicateurs sont récupérés séquentiellement pour éviter le rate-limiting.
     """
-    market_cap, gdp = await asyncio.gather(
-        fetch_world_bank(client, "CM.MKT.LCAP.CD", country_code),
-        fetch_world_bank(client, "NY.GDP.MKTP.CD",  country_code),
-    )
+    market_cap = await fetch_world_bank(client, "CM.MKT.LCAP.CD", country_code)
+    await asyncio.sleep(0.3)
+    gdp = await fetch_world_bank(client, "NY.GDP.MKTP.CD", country_code)
 
     if market_cap is None or gdp is None or gdp == 0:
         return {"country": country_name, "flag": flag, "error": "Données indisponibles"}
@@ -108,8 +120,11 @@ COUNTRIES = [
 async def get_buffett_indicator(request: Request):
     """
     Retourne le Buffett Indicator pour les 4 marchés configurés.
-    Les erreurs par pays sont isolées — un pays en échec ne bloque pas les autres.
+    Cache 1h (données annuelles). Les erreurs par pays sont isolées.
     """
+    if "data" in _buffett_cache:
+        return JSONResponse(_buffett_cache["data"])
+
     async with httpx.AsyncClient() as client:
         results = await asyncio.gather(
             *[fetch_country(client, code, name, flag) for code, name, flag in COUNTRIES],
@@ -124,4 +139,9 @@ async def get_buffett_indicator(request: Request):
         else:
             countries.append(r)
 
-    return JSONResponse({"countries": countries})
+    payload = {"countries": countries}
+    # Ne mettre en cache que si au moins 3 pays ont des données valides
+    if sum(1 for c in countries if "error" not in c) >= 3:
+        _buffett_cache["data"] = payload
+
+    return JSONResponse(payload)
