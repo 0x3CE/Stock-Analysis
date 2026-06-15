@@ -12,29 +12,29 @@ export const PerformanceLedger = ({ kpis = {}, metricRules = DEFAULT_METRIC_RULE
 
   return (
     <section className={styles.card}>
-      <h2 className={styles.title}>Performance Ledger</h2>
+      <h2 className={styles.title}>Performance</h2>
 
-      <div className={styles.table}>
+      <div className={styles.grid}>
         {rows.map((row) => (
-          <div key={row.key} className={styles.row}>
-            <div className={styles.label}>{row.label}</div>
+          <div key={row.key} className={styles.tile}>
+            <div className={styles.tileHeader}>
+              <span className={styles.label}>{row.label}</span>
+              <span className={`${styles.badge} ${statusClassByTone[row.status.tone] || styles.badgeNeutral}`}>
+                {row.status.label}
+              </span>
+            </div>
+
             <div className={styles.value}>{row.value}</div>
 
-            <div className={styles.trackWrap}>
+            {row.position != null && (
               <div className={styles.track}>
-                {row.position != null && (
-                  <span
-                    className={styles.thumb}
-                    style={{ left: `${Math.round(row.position * 100)}%` }}
-                    aria-hidden="true"
-                  />
-                )}
+                <span
+                  className={styles.thumb}
+                  style={{ left: `${Math.round(row.position * 100)}%` }}
+                  aria-hidden="true"
+                />
               </div>
-            </div>
-
-            <div className={`${styles.badge} ${statusClassByTone[row.status.tone] || styles.badgeNeutral}`}>
-              {row.status.label}
-            </div>
+            )}
           </div>
         ))}
       </div>
