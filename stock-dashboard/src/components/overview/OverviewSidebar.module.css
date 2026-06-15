@@ -1,0 +1,191 @@
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-card);
+  animation: cardIn 0.35s ease both;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.summaryList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+}
+
+.summaryItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.summaryDot {
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.dotPositive {
+  background: var(--green);
+}
+
+.dotNeutral {
+  background: #c3bcad;
+}
+
+.thesisGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 10px;
+  margin-bottom: 12px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.metricValue {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.convictionBadge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: var(--radius-full);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.convictionHigh {
+  background: var(--metric-positive-bg);
+  color: var(--green);
+}
+
+.convictionMedium {
+  background: #f3efe6;
+  color: var(--text-muted);
+}
+
+.convictionLow {
+  background: var(--metric-negative-bg);
+  color: var(--red);
+}
+
+.note {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.editButton {
+  appearance: none;
+  border: 1px solid var(--border-default);
+  background: #fff;
+  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.editButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.watchlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.watchlistRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--hairline);
+  min-height: 40px;
+}
+
+.watchlistRow:last-child {
+  border-bottom: none;
+}
+
+.ticker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.price {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.change {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.changeUp {
+  color: var(--green);
+}
+
+.changeDown {
+  color: var(--red);
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 18px;
+  }
+
+  .thesisGrid {
+    grid-template-columns: 1fr;
+  }
+}

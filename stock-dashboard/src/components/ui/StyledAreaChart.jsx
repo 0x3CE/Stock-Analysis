@@ -8,7 +8,7 @@ import {
 export const StyledAreaChart = ({
   data, dataKey, stroke, gradientId,
   yTickFormatter, tooltipFormatter,
-  yDomain, xDataKey = 'year',
+  yDomain, yTicks, xDataKey = 'year',
 }) => (
   <ResponsiveContainer width="100%" height="100%">
     <AreaChart data={data}>
@@ -18,25 +18,26 @@ export const StyledAreaChart = ({
           <stop offset="95%" stopColor={stroke} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <CartesianGrid strokeDasharray="3 3" stroke="#E8E2D4" />
+      <CartesianGrid strokeDasharray="3 3" stroke="#E4DECE" />
       <XAxis
         dataKey={xDataKey}
-        stroke="#D8D2C4"
-        tick={{ fontSize: 11, fill: '#999999', fontFamily: 'DM Mono, monospace' }}
+        stroke="#D7D0BF"
+        tick={{ fontSize: 11, fill: '#8C8779', fontFamily: 'IBM Plex Mono, monospace' }}
       />
       <YAxis
-        stroke="#D8D2C4"
-        tick={{ fontSize: 11, fill: '#999999', fontFamily: 'DM Mono, monospace' }}
+        stroke="#D7D0BF"
+        tick={{ fontSize: 11, fill: '#8C8779', fontFamily: 'IBM Plex Mono, monospace' }}
         tickFormatter={yTickFormatter}
         domain={yDomain || ['auto', 'auto']}
+        ticks={yTicks}
       />
       <Tooltip
         contentStyle={{
           background: '#FFFFFF', border: '1px solid #E8E2D4',
-          borderRadius: '10px', fontFamily: 'DM Sans, sans-serif',
+          borderRadius: '10px', fontFamily: 'Inter, sans-serif',
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         }}
-        labelStyle={{ color: '#777777', fontSize: '12px' }}
+        labelStyle={{ color: '#8C8779', fontSize: '12px' }}
         formatter={tooltipFormatter}
       />
       <Area

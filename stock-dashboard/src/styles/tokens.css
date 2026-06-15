@@ -5,44 +5,51 @@
 
 :root {
   /* ── Arrière-plans ─────────────────────────────────────── */
-  --bg-base:     #F5F0E4;   /* Crème principal               */
-  --bg-card:     #FFFFFF;   /* Cartes blanches               */
-  --bg-surface:  #FFFFFF;   /* Inputs, dropdowns             */
-  --bg-elevated: #F8F4EC;   /* Items au survol               */
-  --bg-muted:    #EDE8DC;   /* Badges neutres                */
-  --bg-header:   #FFFFFF;   /* En-tête blanc                 */
-  --bg-ticker:   #1A2540;   /* Barre ticker sombre           */
+  --bg-base:     #F4F1EA;
+  --bg-card:     #FFFFFF;
+  --bg-surface:  #FFFFFF;
+  --bg-elevated: #F8F5EE;
+  --bg-muted:    #F1ECE2;
+  --bg-header:   #FFFFFF;
+  --bg-ticker:   #12172A;
 
   /* ── Bordures ──────────────────────────────────────────── */
-  --border-subtle:  #E8E2D4;
-  --border-default: #D8D2C4;
-  --border-strong:  #B5A98A;
-  --border-divider: #EDE8DC;
-  --border-section: #E8E2D4;
+  --border-subtle:  #E4DECE;
+  --border-default: #D7D0BF;
+  --border-strong:  #BBAF96;
+  --border-divider: #ECE5D8;
+  --border-section: #E4DECE;
 
   /* ── Textes ────────────────────────────────────────────── */
-  --text-primary:   #1A1A1A;
-  --text-secondary: #2D2D2D;
-  --text-muted:     #555555;
-  --text-dim:       #777777;
-  --text-faint:     #999999;
-  --text-ghost:     #AAAAAA;
+  --text-primary:   #1B2030;
+  --text-secondary: #2A2F3D;
+  --text-muted:     #5A5F6D;
+  --text-dim:       #6F736F;
+  --text-faint:     #8C8779;
+  --text-ghost:     #A9A294;
+
+  /* Alias sémantiques */
+  --ink-primary:    #1B2030;
+  --ink-muted:      #8C8779;
+  --hairline:       #E4DECE;
 
   /* ── Couleurs d'accentuation ───────────────────────────── */
-  --accent:         #1B2B4B;   /* Marine foncé                */
-  --accent-hover:   #0F1D33;
-  --accent-light:   #2B4580;
-  --gold:           #B8860B;   /* Or Aurum                    */
-  --gold-light:     #C9A84C;
-  --green:          #16a34a;
-  --red:            #dc2626;
+  --accent:         #BD8A3D;
+  --accent-hover:   #A77732;
+  --accent-light:   #D2A35D;
+  --gold:           #BD8A3D;
+  --gold-light:     #CFA668;
+  --green:          #2F6B4A;
+  --red:            #AE4430;
   --orange:         #d97706;
   --purple:         #7c3aed;
+  --metric-positive-bg: #E9F1EC;
+  --metric-negative-bg: #F6EAE6;
 
   /* ── Typographie ───────────────────────────────────────── */
-  --font-sans:    'DM Sans', sans-serif;
-  --font-mono:    'DM Mono', monospace;
-  --font-display: 'Playfair Display', serif;
+  --font-sans:    'Inter', sans-serif;
+  --font-mono:    'IBM Plex Mono', monospace;
+  --font-display: 'Fraunces', serif;
 
   /* ── Bordures arrondies ─────────────────────────────────── */
   --radius-sm:   6px;
@@ -55,7 +62,7 @@
   /* ── Ombres ────────────────────────────────────────────── */
   --shadow-card:   0 2px 12px rgba(0, 0, 0, 0.07);
   --shadow-drop:   0 8px 24px rgba(0, 0, 0, 0.10);
-  --shadow-accent: 0 4px 14px rgba(27, 43, 75, 0.30);
+  --shadow-accent: 0 4px 14px rgba(189, 138, 61, 0.25);
 
   /* ── Breakpoints ────────────────────────────────────────── */
   --bp-mobile:  640px;

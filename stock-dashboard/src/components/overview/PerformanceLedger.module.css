@@ -1,0 +1,135 @@
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+  padding: var(--card-padding);
+  box-shadow: var(--shadow-card);
+  animation: cardIn 0.35s ease both;
+}
+
+.title {
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.table {
+  border-top: 1px solid var(--hairline);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.5fr) minmax(110px, 1fr) minmax(120px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 54px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.trackWrap {
+  display: flex;
+  align-items: center;
+}
+
+.track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--metric-negative-bg), #f2efe8, var(--metric-positive-bg));
+}
+
+.thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.badgeGood {
+  color: var(--green);
+  background: var(--metric-positive-bg);
+}
+
+.badgeWarn {
+  color: var(--red);
+  background: var(--metric-negative-bg);
+}
+
+.badgeNeutral {
+  color: var(--text-faint);
+  background: #f3efe6;
+}
+
+@media (max-width: 980px) {
+  .row {
+    grid-template-columns: minmax(130px, 1.6fr) minmax(100px, 1fr) auto;
+  }
+
+  .trackWrap {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    padding: 10px 0;
+    min-height: 0;
+  }
+
+  .label {
+    grid-column: 1 / 2;
+    font-size: 13px;
+  }
+
+  .value {
+    grid-column: 1 / 2;
+    font-size: 12px;
+  }
+
+  .badge {
+    grid-column: 2 / 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+}

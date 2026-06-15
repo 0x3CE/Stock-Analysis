@@ -384,6 +384,7 @@ const StockDashboard = () => {
                 dividend_history={analysis.dividend_history}
                 profit_margin_history={analysis.profit_margin_history}
                 chartHeight={chartHeight}
+                ticker={analysis.ticker}
               />
             )}
             {activeTab === 'financials' && (

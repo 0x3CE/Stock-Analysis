@@ -1,7 +1,52 @@
-import { TrendingUp, TrendingDown, BarChart2, Activity, DollarSign, Percent, Scale, Layers } from 'lucide-react';
 import { StyledAreaChart } from '../components/ui/StyledAreaChart';
-import { getPERatioColor } from '../utils/Formatters';
+import { PerformanceLedger } from '../components/overview/PerformanceLedger';
+import { OverviewSidebar } from '../components/overview/OverviewSidebar';
 import styles from './OverviewTab.module.css';
+const getNiceStep = (rawStep) => {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const residual = rawStep / magnitude;
+
+  if (residual <= 1) return 1 * magnitude;
+  if (residual <= 2) return 2 * magnitude;
+  if (residual <= 2.5) return 2.5 * magnitude;
+  if (residual <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+};
+
+const buildNicePriceAxis = (series, tickCount = 4) => {
+  const prices = (series || [])
+    .map((point) => Number(point?.price))
+    .filter((value) => Number.isFinite(value));
+
+  if (prices.length === 0) return { yTicks: undefined, yDomain: ['auto', 'auto'] };
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const spread = Math.max(max - min, 1);
+  const step = getNiceStep(spread / Math.max(tickCount - 1, 1));
+
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks = [];
+
+  for (let value = niceMin; value <= niceMax + step * 0.5; value += step) {
+    ticks.push(Number(value.toFixed(4)));
+  }
+
+  return {
+    yTicks: ticks,
+    yDomain: [niceMin, niceMax],
+  };
+};
+
+const formatPriceTick = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '$—';
+  if (Math.abs(n) >= 100) return `$${Math.round(n)}`;
+  if (Math.abs(n) >= 10) return `$${n.toFixed(0)}`;
+  return `$${n.toFixed(2)}`;
+};
 
 // ---------------------------------------------------------------------------
 // Executive Summary — génère des points clés depuis les KPIs
@@ -12,187 +57,106 @@ function buildSummaryPoints(kpis) {
 
   if (kpis.profit_margin != null) {
     if (kpis.profit_margin > 20)
-      points.push(`Marge bénéficiaire solide à ${kpis.profit_margin}%.`);
+      points.push({ text: `Marge bénéficiaire solide à ${kpis.profit_margin}%.`, tone: 'positive' });
     else if (kpis.profit_margin > 10)
-      points.push(`Marge bénéficiaire correcte à ${kpis.profit_margin}%.`);
+      points.push({ text: `Marge bénéficiaire correcte à ${kpis.profit_margin}%.`, tone: 'neutral' });
     else
-      points.push(`Marge bénéficiaire sous pression (${kpis.profit_margin}%).`);
+      points.push({ text: `Marge bénéficiaire sous pression (${kpis.profit_margin}%).`, tone: 'neutral' });
   }
 
   if (kpis.roe != null) {
     if (kpis.roe > 20)
-      points.push(`Excellente rentabilité des capitaux propres (ROE ${kpis.roe}%).`);
+      points.push({ text: `Excellente rentabilité des capitaux propres (ROE ${kpis.roe}%).`, tone: 'positive' });
     else if (kpis.roe > 10)
-      points.push(`ROE positif à ${kpis.roe}% — rendement correct.`);
+      points.push({ text: `ROE positif à ${kpis.roe}% — rendement correct.`, tone: 'positive' });
     else
-      points.push(`ROE limité à ${kpis.roe}% — surveiller l'efficacité.`);
+      points.push({ text: `ROE limité à ${kpis.roe}% — surveiller l'efficacité.`, tone: 'neutral' });
   }
 
   if (kpis.debt_to_equity != null) {
     if (kpis.debt_to_equity > 150)
-      points.push(`Levier financier élevé (D/E ${kpis.debt_to_equity}%) — prudence.`);
+      points.push({ text: `Levier financier élevé (D/E ${kpis.debt_to_equity}%) — prudence.`, tone: 'neutral' });
     else if (kpis.debt_to_equity > 50)
-      points.push(`Endettement modéré avec un D/E de ${kpis.debt_to_equity}%.`);
+      points.push({ text: `Endettement modéré avec un D/E de ${kpis.debt_to_equity}%.`, tone: 'neutral' });
     else
-      points.push(`Bilan peu endetté, D/E à ${kpis.debt_to_equity ?? '—'}%.`);
+      points.push({ text: `Bilan peu endetté, D/E à ${kpis.debt_to_equity ?? '—'}%.`, tone: 'positive' });
   }
 
   if (kpis.pe_ratio != null) {
     if (kpis.pe_ratio > 30)
-      points.push(`Valorisation premium avec un P/E de ${kpis.pe_ratio}x.`);
+      points.push({ text: `Valorisation premium avec un P/E de ${kpis.pe_ratio}x.`, tone: 'neutral' });
     else if (kpis.pe_ratio > 15)
-      points.push(`Valorisation raisonnable à ${kpis.pe_ratio}x les bénéfices.`);
+      points.push({ text: `Valorisation raisonnable à ${kpis.pe_ratio}x les bénéfices.`, tone: 'positive' });
     else
-      points.push(`Valorisation attractive — P/E à ${kpis.pe_ratio}x.`);
+      points.push({ text: `Valorisation attractive — P/E à ${kpis.pe_ratio}x.`, tone: 'positive' });
   }
 
   if (kpis.dividend_yield > 0)
-    points.push(`Dividende annuel de ${kpis.dividend_yield}%.`);
+    points.push({ text: `Dividende annuel de ${kpis.dividend_yield}%.`, tone: 'positive' });
 
   return points.slice(0, 3);
 }
 
-// ---------------------------------------------------------------------------
-// Textes explicatifs par métrique
-// ---------------------------------------------------------------------------
-
-const TOOLTIPS = {
-  '52W High':      'Prix le plus haut atteint sur les 52 dernières semaines. Constitue une résistance technique clé : un franchissement à la hausse est souvent haussier.',
-  '52W Low':       'Prix le plus bas atteint sur les 52 dernières semaines. Constitue un support technique : un franchissement à la baisse peut signaler une faiblesse.',
-  'Beta':          'Mesure la volatilité de l\'action par rapport au marché. Beta > 1 = plus volatile que l\'indice. Beta < 1 = plus stable. Beta < 0 = inversement corrélé.',
-  'ROE':           'Return on Equity — Rentabilité des capitaux propres. Indique l\'efficacité à générer des bénéfices pour les actionnaires. > 15% est généralement solide.',
-  'Debt / Equity': 'Ratio dette nette / capitaux propres. Mesure le levier financier de l\'entreprise. Un ratio élevé indique un endettement important et un risque accru.',
-  'Current Ratio': 'Ratio de liquidité courante (actifs / passifs courts termes). > 1 = l\'entreprise peut couvrir ses dettes à court terme. < 1 = risque de liquidité.',
-  'EPS':           'Earnings Per Share — Bénéfice net par action. Indique combien l\'entreprise gagne pour chaque action en circulation. Indicateur clé de rentabilité.',
-  'Profit Margin': 'Marge bénéficiaire nette. Pourcentage du chiffre d\'affaires converti en bénéfice net après toutes les charges. > 20% est généralement excellent.',
-};
-
-// ---------------------------------------------------------------------------
-// KPI Mini Card avec tooltip au survol
-// ---------------------------------------------------------------------------
-
-const KpiMiniCard = ({ label, value, valueColor, icon: Icon, delay = 0 }) => (
-  <div
-    className={styles.kpiCard}
-    style={{ animationDelay: `${delay}s` }}
-    data-tooltip={TOOLTIPS[label]}
-  >
-    <div className={styles.kpiHeader}>
-      <span className={styles.kpiLabel}>{label}</span>
-      {Icon && <Icon size={16} className={styles.kpiIcon} />}
-    </div>
-    <div className={styles.kpiValue} style={{ color: valueColor || 'var(--text-primary)' }}>
-      {value ?? '—'}
-    </div>
-  </div>
-);
 
 // ---------------------------------------------------------------------------
 // OverviewTab
 // ---------------------------------------------------------------------------
 
-const OverviewTab = ({ kpis = {}, historical_data = [], dividend_history = [], profit_margin_history = [], chartHeight }) => {
+const OverviewTab = ({ kpis = {}, historical_data = [], dividend_history = [], profit_margin_history = [], chartHeight, ticker = '—' }) => {
   const recentPrices = (historical_data || []).slice(-30);
+  const { yTicks, yDomain } = buildNicePriceAxis(recentPrices, 4);
   const summaryPoints = buildSummaryPoints(kpis || {});
+  const currentPrice = Number(kpis.current_price);
+  const hasPrice = Number.isFinite(currentPrice);
+  const targetPrice = hasPrice ? currentPrice * 1.12 : null;
+  const potentialPct = hasPrice ? ((targetPrice - currentPrice) / currentPrice) * 100 : null;
+
+  const thesis = {
+    currentPrice,
+    targetPrice,
+    potentialPct,
+    conviction: 'Moyenne',
+    note: 'Hypothèse initiale (placeholder) : exécution stable et progression graduelle des marges sur les prochains trimestres.',
+  };
+
+  const watchlistItems = [
+    { ticker, price: hasPrice ? currentPrice : null, change: Number(kpis.price_change) || 0 },
+    { ticker: 'MSFT', price: 468.15, change: 0.84 },
+    { ticker: 'ASML', price: 1088.9, change: -1.12 },
+    { ticker: 'MC.PA', price: 713.4, change: 0.46 },
+  ];
 
   return (
-    <div>
-      {/* ── Rangée supérieure : Executive Summary + Graphique ── */}
-      <div className={styles.topRow}>
-        {/* Executive Summary */}
-        <div className={styles.summaryCard}>
-          <h2 className={styles.cardTitle}>Executive Summary</h2>
-          <ul className={styles.summaryList}>
-            {summaryPoints.length > 0
-              ? summaryPoints.map((pt, i) => (
-                  <li key={i} className={styles.summaryItem}>{pt}</li>
-                ))
-              : <li className={styles.summaryItem}>Données insuffisantes pour générer un résumé.</li>
-            }
-          </ul>
+    <div className={styles.overviewShell}>
+      <div className={styles.overviewGrid}>
+        <div className={styles.mainColumn}>
+          {/* Graphique prix 30j */}
+          <div className={styles.chartCard}>
+            <div className={styles.cardHeader}>
+              <h2 className={styles.cardTitle}>Évolution du Prix</h2>
+              <span className={styles.cardUnit}>30 derniers jours</span>
+            </div>
+            <div style={{ height: chartHeight }}>
+              <StyledAreaChart
+                data={recentPrices} dataKey="price" stroke="#1B2030"
+                gradientId="priceGrad" xDataKey="date"
+                yTickFormatter={formatPriceTick}
+                tooltipFormatter={(v) => [formatPriceTick(v), 'Prix']}
+                yDomain={yDomain}
+                yTicks={yTicks}
+              />
+            </div>
+          </div>
+          <PerformanceLedger kpis={kpis} />
         </div>
 
-        {/* Graphique prix 30j */}
-        <div className={styles.chartCard}>
-          <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>Évolution du Prix</h2>
-            <span className={styles.cardUnit}>30 derniers jours</span>
-          </div>
-          <div style={{ height: chartHeight }}>
-            <StyledAreaChart
-              data={recentPrices} dataKey="price" stroke="#1B2B4B"
-              gradientId="priceGrad" xDataKey="date"
-              yTickFormatter={(v) => `$${v}`}
-              tooltipFormatter={(v) => [`$${v}`, 'Prix']}
-              yDomain={['dataMin - 5', 'dataMax + 5']}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Performance Breakdown ───────────────────────────── */}
-      <h2 className={styles.sectionTitle}>Performance Breakdown</h2>
-
-      {/* Rangée 1 : 52W High, 52W Low, Beta */}
-      <div className={styles.kpiRow3}>
-        <KpiMiniCard
-          label="52W High"
-          value={kpis.high_52w ? `$${kpis.high_52w}` : null}
-          valueColor="var(--green)"
-          icon={TrendingUp}
-          delay={0.05}
-        />
-        <KpiMiniCard
-          label="52W Low"
-          value={kpis.low_52w ? `$${kpis.low_52w}` : null}
-          valueColor="var(--red)"
-          icon={TrendingDown}
-          delay={0.10}
-        />
-        <KpiMiniCard
-          label="Beta"
-          value={kpis.beta ?? null}
-          icon={BarChart2}
-          delay={0.15}
-        />
-      </div>
-
-      {/* Rangée 2 : ROE, Debt/Equity, Current Ratio, EPS, Profit Margin */}
-      <div className={styles.kpiRow5}>
-        <KpiMiniCard
-          label="ROE"
-          value={kpis.roe != null ? `${kpis.roe}%` : null}
-          valueColor={kpis.roe > 15 ? 'var(--green)' : undefined}
-          icon={DollarSign}
-          delay={0.20}
-        />
-        <KpiMiniCard
-          label="Debt / Equity"
-          value={kpis.debt_to_equity ?? null}
-          valueColor={kpis.debt_to_equity > 200 ? 'var(--red)' : undefined}
-          icon={Scale}
-          delay={0.25}
-        />
-        <KpiMiniCard
-          label="Current Ratio"
-          value={kpis.current_ratio ?? null}
-          valueColor={kpis.current_ratio > 1 ? 'var(--green)' : 'var(--red)'}
-          icon={Layers}
-          delay={0.30}
-        />
-        <KpiMiniCard
-          label="EPS"
-          value={kpis.eps != null ? `$${kpis.eps}` : null}
-          icon={Activity}
-          delay={0.35}
-        />
-        <KpiMiniCard
-          label="Profit Margin"
-          value={kpis.profit_margin != null ? `${kpis.profit_margin}%` : null}
-          valueColor={kpis.profit_margin > 20 ? 'var(--green)' : undefined}
-          icon={Percent}
-          delay={0.40}
-        />
+        <aside className={styles.sidebarColumn}>
+          <OverviewSidebar
+            summaryPoints={summaryPoints}
+            thesis={thesis}
+            watchlistItems={watchlistItems}
+          />
+        </aside>
       </div>
     </div>
   );
