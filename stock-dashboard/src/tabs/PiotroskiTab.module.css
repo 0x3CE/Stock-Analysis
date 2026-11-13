@@ -136,6 +136,17 @@
   color: var(--red);
 }
 
+.criterionUnknown {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.25);
+  border-style: dashed;
+}
+
+.criterionBadgeUnknown {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
 .criterionDetail {
   font-size: 11px;
   color: var(--text-faint);

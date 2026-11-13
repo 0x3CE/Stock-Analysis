@@ -3,20 +3,29 @@ import { PiotroskiGauge } from '../components/ui/PiotroskiGauge';
 import { getPiotroskiColor } from '../utils/Formatters';
 import styles from './PiotroskiTab.module.css';
 
-const CriterionCard = ({ criterion, score, detail }) => (
-  <div className={`${styles.criterion} ${score === 1 ? styles.criterionPass : styles.criterionFail}`}>
-    <div className={styles.criterionRow}>
-      <span className={styles.criterionName}>{criterion}</span>
-      <span className={`${styles.criterionBadge} ${score === 1 ? styles.criterionBadgePass : styles.criterionBadgeFail}`}>
-        {score === 1 ? '✓ OUI' : '✗ NON'}
-      </span>
+// Trois états : 1 (OK), 0 (échec), null (inconnu : données manquantes, jamais compté comme un échec)
+const ETATS = {
+  ok:      { carte: styles.criterionPass,    badge: styles.criterionBadgePass,    texte: '✓ OUI' },
+  echec:   { carte: styles.criterionFail,    badge: styles.criterionBadgeFail,    texte: '✗ NON' },
+  inconnu: { carte: styles.criterionUnknown, badge: styles.criterionBadgeUnknown, texte: '? INCONNU' },
+};
+const etat = (score) => (score === 1 ? ETATS.ok : score === 0 ? ETATS.echec : ETATS.inconnu);
+
+const CriterionCard = ({ criterion, score, detail }) => {
+  const e = etat(score);
+  return (
+    <div className={`${styles.criterion} ${e.carte}`}>
+      <div className={styles.criterionRow}>
+        <span className={styles.criterionName}>{criterion}</span>
+        <span className={`${styles.criterionBadge} ${e.badge}`}>{e.texte}</span>
+      </div>
+      <div className={styles.criterionDetail}>{detail}</div>
     </div>
-    <div className={styles.criterionDetail}>{detail}</div>
-  </div>
-);
+  );
+};
 
 const PiotroskiTab = ({ piotroski_score }) => {
-  const pioColors = getPiotroskiColor(piotroski_score.total_score);
+  const pioColors = getPiotroskiColor(piotroski_score.total_score, piotroski_score.inconnus);
 
   const categories = [
     { title: 'Rentabilité',               color: '#3b82f6', items: piotroski_score.profitability, delay: 0.1  },
@@ -32,7 +41,7 @@ const PiotroskiTab = ({ piotroski_score }) => {
         style={{ borderColor: `${pioColors.text}30`, animation: 'cardIn 0.4s ease 0.05s forwards' }}
       >
         <div className={styles.headerInner}>
-          <PiotroskiGauge score={piotroski_score.total_score} />
+          <PiotroskiGauge score={piotroski_score.total_score} inconnus={piotroski_score.inconnus} />
 
           <div className={styles.headerMeta}>
             <div className={styles.headerTitleRow}>

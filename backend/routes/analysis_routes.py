@@ -119,16 +119,16 @@ async def analyze_stock(request: Request, input_str: str):
     if historical:
         prices = [h["price"] for h in historical]
         # Prix courant
-        if not kpis.get("current_price") and len(historical) >= 1:
+        if kpis.get("current_price") is None and len(historical) >= 1:
             kpis["current_price"] = historical[-1]["price"]
-        # Variation jour J-1
-        if not kpis.get("price_change") and len(historical) >= 2:
+        # Variation jour J-1 (None si incalculable, jamais 0 par défaut)
+        if kpis.get("price_change") is None and len(historical) >= 2:
             last, prev = historical[-1]["price"], historical[-2]["price"]
-            kpis["price_change"] = round((last - prev) / prev * 100, 2) if prev else 0.0
+            kpis["price_change"] = round((last - prev) / prev * 100, 2) if prev else None
         # 52W High/Low (déjà fourni par fast_info, mais sécurité supplémentaire)
-        if not kpis.get("high_52w"):
+        if kpis.get("high_52w") is None:
             kpis["high_52w"] = round(max(prices), 2)
-        if not kpis.get("low_52w"):
+        if kpis.get("low_52w") is None:
             kpis["low_52w"] = round(min(prices), 2)
 
     try: dividend_history = StockDataService.get_dividend_history(stock)
@@ -144,7 +144,8 @@ async def analyze_stock(request: Request, input_str: str):
     try: piotroski = StockDataService.compute_piotroski_fscore(stock)
     except Exception:
         logger.exception("Erreur Piotroski pour %s", symbol)
-        piotroski = {"total_score": 0, "profitability": [], "leverage": [], "operating": [], "interpretation": "N/A"}
+        piotroski = {"total_score": None, "inconnus": 9, "profitability": [], "leverage": [], "operating": [],
+                     "interpretation": "N/A"}
 
     try:
         info  = stock.info or {}

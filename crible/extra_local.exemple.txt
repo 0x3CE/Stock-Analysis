@@ -1,0 +1,5 @@
+# Copie ce fichier en « extra_local.txt » (non versionné) et ajoute un ticker Yahoo par ligne.
+# Ces sociétés s'ajoutent à l'univers du crible, par exemple tes lignes détenues.
+# Tout ce qui suit un « # » est ignoré.
+# ASML.AS
+# ROG.SW

@@ -115,3 +115,12 @@ secrets.json
 
 
 task/
+# =========================================
+# 📊 CRIBLE DES MARCHÉS (sorties et fichiers personnels)
+# =========================================
+cache_crible/
+crible_resultats.*
+resultats_filtre.csv
+crible/extra_local.txt
+__pycache__/
+stock-dashboard/test-results/

@@ -6,6 +6,10 @@ Responsabilités :
 - Extraire les KPIs financiers
 - Calculer le Piotroski F-Score
 - Construire les historiques (prix, dividendes, bénéfices)
+
+Règle (CLAUDE.md, règle 2) : une donnée manquante reste inconnue. Elle vaut
+None, jamais 0. Un critère Piotroski sans données vaut INCONNU (score None),
+et le score total est alors une fourchette.
 """
 
 from fastapi import HTTPException
@@ -26,6 +30,8 @@ PIOTROSKI_HIGH_THRESHOLD = 7
 PIOTROSKI_MID_THRESHOLD = 4
 DIVIDEND_HISTORY_YEARS = 5
 
+OK, ECHEC, INCONNU = "OK", "ÉCHEC", "INCONNU"
+
 
 # ---------------------------------------------------------------------------
 # Service principal
@@ -39,28 +45,50 @@ class StockDataService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _safe_float(value) -> float:
+    def _safe_float(value):
+        """Nombre fini, ou None si la valeur est absente, NaN, infinie ou illisible."""
+        if value is None or isinstance(value, bool):
+            return None
         try:
             result = float(value)
-            return 0.0 if math.isnan(result) or math.isinf(result) else result
-        except Exception:
-            return 0.0
+        except (TypeError, ValueError):
+            return None
+        return result if math.isfinite(result) else None
 
     @staticmethod
-    def _safe_df_value(df: pd.DataFrame, row: str, col) -> float:
-        """Lit une cellule d'un DataFrame sans lever d'exception."""
+    def _safe_df_value(df: pd.DataFrame, row: str, col):
+        """Lit une cellule d'un DataFrame. None si la ligne, la colonne ou la valeur manque."""
         try:
             return StockDataService._safe_float(df.at[row, col])
         except Exception:
-            return 0.0
+            return None
 
     @staticmethod
-    def _get_field(info: dict, fast: dict, key: str, alt_key: str = None):
+    def _first_row(df: pd.DataFrame, col, *rows):
+        """Première valeur connue parmi plusieurs intitulés de ligne (Yahoo les change parfois)."""
+        for row in rows:
+            v = StockDataService._safe_df_value(df, row, col)
+            if v is not None:
+                return v
+        return None
+
+    @staticmethod
+    def _get_field(info: dict, fast, key: str, alt_key: str = None):
         """
-        Lit un champ depuis info ou fast_info avec fallback.
-        Retourne None si aucune valeur n'est trouvée.
+        Lit un champ depuis info, sinon depuis fast_info. None si rien n'est trouvé.
+        Une vraie valeur 0 est conservée (pas de « or » qui l'écarterait).
         """
-        return info.get(key) or (fast.get(alt_key) if alt_key else None) or None
+        v = StockDataService._safe_float(info.get(key)) if info else None
+        if v is None and alt_key and fast is not None:
+            try:
+                v = StockDataService._safe_float(fast[alt_key])
+            except Exception:
+                v = None
+        return v
+
+    @staticmethod
+    def _round(value, digits=2, scale=1.0):
+        return None if value is None else round(value / scale, digits)
 
     # ------------------------------------------------------------------
     # Récupération du ticker
@@ -91,16 +119,17 @@ class StockDataService:
         """
         Extrait les indicateurs financiers clés depuis info et fast_info.
         Si stock.info est rate-limité (cloud IPs), calcule les métriques
-        fondamentales depuis le bilan et le compte de résultat en fallback.
+        fondamentales depuis le bilan et le compte de résultat en repli.
+        Toute valeur introuvable vaut None.
         """
         try:
             info: dict = stock.info or {}
         except Exception:
             info = {}
         try:
-            fast = stock.fast_info or {}
+            fast = stock.fast_info
         except Exception:
-            fast = {}
+            fast = None
 
         def get(key: str, alt: str = None):
             return StockDataService._get_field(info, fast, key, alt)
@@ -108,15 +137,12 @@ class StockDataService:
         current_price = get("currentPrice", "last_price")
         prev_close    = get("previousClose", "previous_close")
 
-        # Variation journalière en % (0 si données insuffisantes)
-        if current_price and prev_close and prev_close != 0:
+        # Variation journalière en % (None si données insuffisantes)
+        if current_price is not None and prev_close:
             price_change = (current_price - prev_close) / prev_close * 100
         else:
-            price_change = 0.0
+            price_change = None
 
-        sf = StockDataService._safe_float
-
-        # Métriques fondamentales depuis info (endpoint quoteSummary)
         roe_raw       = get("returnOnEquity")
         d_e_raw       = get("debtToEquity")
         cr_raw        = get("currentRatio")
@@ -126,72 +152,57 @@ class StockDataService:
         div_yield_raw = get("dividendYield")
         pe_raw        = get("trailingPE")
 
-        # ── Fallback depuis états financiers si info est vide (rate limit) ──
-        if not any([roe_raw, d_e_raw, cr_raw, pm_raw, eps_raw]):
+        # ── Repli sur les états financiers si info est vide (rate limit) ──
+        if all(v is None for v in (roe_raw, d_e_raw, cr_raw, pm_raw, eps_raw)):
             try:
                 bs  = getattr(stock, "balance_sheet", pd.DataFrame())
                 is_ = getattr(stock, "financials",    pd.DataFrame())
                 if not bs.empty and not is_.empty:
-                    bc  = bs.columns[0]
-                    ic  = is_.columns[0]
-                    sdf = StockDataService._safe_df_value
+                    bc, ic = bs.columns[0], is_.columns[0]
+                    first = StockDataService._first_row
 
-                    net_income = sdf(is_, "Net Income",    ic)
-                    revenue    = sdf(is_, "Total Revenue",  ic)
+                    net_income  = first(is_, ic, "Net Income")
+                    revenue     = first(is_, ic, "Total Revenue")
+                    equity      = first(bs, bc, "Stockholders Equity", "Total Equity Gross Minority Interest")
+                    curr_assets = first(bs, bc, "Current Assets")
+                    curr_liab   = first(bs, bc, "Current Liabilities")
+                    total_debt  = first(bs, bc, "Total Debt")
+                    shares = StockDataService._get_field({}, fast, "", "shares")
+                    if shares is None:
+                        shares = first(bs, bc, "Ordinary Shares Number")
 
-                    equity = sdf(bs, "Stockholders Equity", bc)
-                    if equity == 0:
-                        equity = sdf(bs, "Total Equity Gross Minority Interest", bc)
-
-                    curr_assets = sdf(bs, "Current Assets",      bc)
-                    curr_liab   = sdf(bs, "Current Liabilities",  bc)
-
-                    ltd = sdf(bs, "Long Term Debt", bc)
-                    if ltd == 0:
-                        ltd = sdf(bs, "Long Term Debt And Capital Lease Obligation", bc)
-                    std = sdf(bs, "Current Debt", bc)
-                    if std == 0:
-                        std = sdf(bs, "Short Term Debt", bc)
-                    total_debt = ltd + std
-
-                    shares = sf(fast.get("shares") or 0)
-                    if shares == 0:
-                        shares = sdf(bs, "Ordinary Shares Number", bc)
-
-                    if equity != 0:
-                        if net_income:
+                    if equity and equity > 0:
+                        if net_income is not None:
                             roe_raw = net_income / equity
-                        if total_debt:
+                        if total_debt is not None:
                             d_e_raw = total_debt / equity * 100
-                    if curr_liab > 0:
+                    if curr_assets is not None and curr_liab and curr_liab > 0:
                         cr_raw = curr_assets / curr_liab
-                    if revenue != 0 and net_income:
+                    if net_income is not None and revenue and revenue > 0:
                         pm_raw = net_income / revenue
-                    if shares != 0 and net_income:
+                    if net_income is not None and shares and shares > 0:
                         eps_raw = net_income / shares
-                    if not pe_raw and eps_raw and sf(eps_raw) != 0 and current_price:
-                        pe_raw = sf(current_price) / sf(eps_raw)
+                    if pe_raw is None and eps_raw and eps_raw > 0 and current_price is not None:
+                        pe_raw = current_price / eps_raw
             except Exception:
-                pass  # Fallback silencieux
+                pass  # repli impossible : les champs restent None
 
-        high_52w_val = get("fiftyTwoWeekHigh", "year_high")
-        low_52w_val  = get("fiftyTwoWeekLow",  "year_low")
-
+        r = StockDataService._round
         return {
-            "current_price":  round(sf(current_price), 2),
-            "price_change":   round(sf(price_change), 2),
-            "market_cap":     round(sf(get("marketCap", "market_cap")) / MARKET_CAP_SCALE, 2),
-            "pe_ratio":       round(sf(pe_raw), 2)              if pe_raw       else None,
-            "dividend_yield": round(sf(div_yield_raw) * 100, 2) if div_yield_raw else None,
-            "volume":         round(sf(get("volume", "day_volume")) / VOLUME_SCALE, 2),
-            "high_52w":       round(sf(high_52w_val), 2)        if high_52w_val else None,
-            "low_52w":        round(sf(low_52w_val),  2)        if low_52w_val  else None,
-            "beta":           round(sf(beta_raw), 2)            if beta_raw     else None,
-            "eps":            round(sf(eps_raw), 2)             if eps_raw      else None,
-            "roe":            round(sf(roe_raw) * 100, 2)       if roe_raw      else None,
-            "debt_to_equity": round(sf(d_e_raw), 2)             if d_e_raw      else None,
-            "current_ratio":  round(sf(cr_raw), 2)              if cr_raw       else None,
-            "profit_margin":  round(sf(pm_raw) * 100, 2)        if pm_raw       else None,
+            "current_price":  r(current_price),
+            "price_change":   r(price_change),
+            "market_cap":     r(get("marketCap", "market_cap"), 2, MARKET_CAP_SCALE),
+            "pe_ratio":       r(pe_raw),
+            "dividend_yield": r(div_yield_raw * 100) if div_yield_raw is not None else None,
+            "volume":         r(get("volume", "last_volume"), 2, VOLUME_SCALE),
+            "high_52w":       r(get("fiftyTwoWeekHigh", "year_high")),
+            "low_52w":        r(get("fiftyTwoWeekLow", "year_low")),
+            "beta":           r(beta_raw),
+            "eps":            r(eps_raw),
+            "roe":            r(roe_raw * 100) if roe_raw is not None else None,
+            "debt_to_equity": r(d_e_raw),
+            "current_ratio":  r(cr_raw),
+            "profit_margin":  r(pm_raw * 100) if pm_raw is not None else None,
         }
 
     # ------------------------------------------------------------------
@@ -202,21 +213,25 @@ class StockDataService:
     def get_historical_prices(stock: yf.Ticker, period: str = "1y") -> list[dict]:
         """
         Retourne l'historique de prix (date, clôture, volume) pour la période donnée.
-        Retourne une liste vide si aucune donnée n'est disponible.
+        Les jours sans cours de clôture sont ignorés.
         """
         hist = stock.history(period=period)
         if hist.empty:
             return []
 
         hist = hist.reset_index()
-        return [
-            {
+        res = []
+        for _, row in hist.iterrows():
+            price = StockDataService._safe_float(row["Close"])
+            if price is None:
+                continue
+            vol = StockDataService._safe_float(row.get("Volume"))
+            res.append({
                 "date":   row["Date"].strftime("%Y-%m-%d"),
-                "price":  round(float(row["Close"]), 2),
-                "volume": int(row["Volume"]),
-            }
-            for _, row in hist.iterrows()
-        ]
+                "price":  round(price, 2),
+                "volume": int(vol) if vol is not None else None,
+            })
+        return res
 
     # ------------------------------------------------------------------
     # Historique des dividendes
@@ -232,7 +247,7 @@ class StockDataService:
         if dividends.empty:
             return []
 
-        # Suppression du timezone pour la comparaison de dates
+        # Suppression du fuseau horaire pour la comparaison de dates
         dividends.index = dividends.index.tz_localize(None)
         cutoff = datetime.now() - pd.DateOffset(years=DIVIDEND_HISTORY_YEARS)
         recent_dividends = dividends[dividends.index >= cutoff]
@@ -240,10 +255,12 @@ class StockDataService:
         result = []
         for year, group in recent_dividends.groupby(recent_dividends.index.year):
             last_date = group.index[-1]
-            last_amount = group.iloc[-1]
+            last_amount = StockDataService._safe_float(group.iloc[-1])
+            if last_amount is None:
+                continue
             result.append({
                 "year":   str(year),
-                "amount": round(float(last_amount), 2),
+                "amount": round(last_amount, 2),
                 "date":   last_date.strftime("%Y-%m-%d"),
             })
         return result
@@ -255,30 +272,27 @@ class StockDataService:
     @staticmethod
     def get_profit_and_margin_history(stock: yf.Ticker) -> list[dict]:
         """
-        Calcule le bénéfice net (en Mds $) et la marge nette (%) par année fiscale.
-        Les colonnes sans 'Total Revenue' ou 'Net Income' sont ignorées silencieusement.
+        Bénéfice net (en milliards) et marge nette (%) par exercice.
+        Une valeur manquante reste None (trou dans le graphique, pas un 0).
+        Un exercice sans aucune des deux valeurs est ignoré.
         """
         financials: pd.DataFrame = getattr(stock, "financials", pd.DataFrame())
         if financials.empty:
             return []
 
-        financials = financials.fillna(0)
         history = []
-
         for col in financials.columns:
-            try:
-                year = col.year if hasattr(col, "year") else str(col)
-                revenue   = StockDataService._safe_float(financials.at["Total Revenue", col])
-                net_income = StockDataService._safe_float(financials.at["Net Income", col])
-                margin = (net_income / revenue * 100) if revenue != 0 else 0.0
-
-                history.append({
-                    "year":       str(year),
-                    "net_income": round(net_income / FINANCIALS_SCALE, 2),
-                    "margin":     round(margin, 2),
-                })
-            except Exception:
-                continue  # Colonne incomplète — on passe
+            year = col.year if hasattr(col, "year") else str(col)
+            revenue    = StockDataService._safe_df_value(financials, "Total Revenue", col)
+            net_income = StockDataService._safe_df_value(financials, "Net Income", col)
+            if revenue is None and net_income is None:
+                continue
+            margin = net_income / revenue * 100 if net_income is not None and revenue and revenue > 0 else None
+            history.append({
+                "year":       str(year),
+                "net_income": StockDataService._round(net_income, 2, FINANCIALS_SCALE),
+                "margin":     StockDataService._round(margin),
+            })
 
         return sorted(history, key=lambda x: x["year"])
 
@@ -287,185 +301,180 @@ class StockDataService:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def interpret_piotroski(score: int, inconnus: int) -> str:
+        """
+        Interprétation du score. Avec des critères inconnus, le vrai score est
+        entre `score` et `score + inconnus` : on ne conclut que si toute la
+        fourchette tombe dans la même zone.
+        """
+        def zone(s):
+            if s >= PIOTROSKI_HIGH_THRESHOLD:
+                return "Entreprise solide — très bonne gestion financière."
+            if s >= PIOTROSKI_MID_THRESHOLD:
+                return "Entreprise avec du potentiel — analyse approfondie recommandée."
+            return "Signaux financiers faibles — prudence."
+
+        if inconnus == 0:
+            return zone(score)
+        bas, haut = zone(score), zone(score + inconnus)
+        prefixe = (f"Score partiel : {score}/9, {inconnus} critère{'s' if inconnus > 1 else ''} "
+                   f"inconnu{'s' if inconnus > 1 else ''} (score réel entre {score} et {score + inconnus}). ")
+        if bas == haut:
+            return prefixe + bas
+        return prefixe + "Données insuffisantes pour conclure."
+
+    @staticmethod
     def compute_piotroski_fscore(stock: yf.Ticker) -> dict:
         """
         Calcule le Piotroski F-Score (0–9) selon les 9 critères standards :
         4 de rentabilité, 3 de levier/liquidité, 2 d'efficacité opérationnelle.
+        Chaque critère vaut 1 (OK), 0 (ÉCHEC) ou None (INCONNU, données manquantes).
+        Seuls les états annuels sont utilisés : pas de mélange avec les chiffres
+        sur 12 mois glissants de stock.info.
         """
         balance_sheet: pd.DataFrame = getattr(stock, "balance_sheet", pd.DataFrame())
         income_stmt:   pd.DataFrame = getattr(stock, "financials", pd.DataFrame())
         cashflow_stmt: pd.DataFrame = getattr(stock, "cashflow", pd.DataFrame())
-        try:
-            info: dict = stock.info or {}
-        except Exception:
-            info = {}
 
         _empty_result = {
-            "total_score":    0,
+            "total_score":    None,
+            "inconnus":       9,
             "profitability":  [],
             "leverage":       [],
             "operating":      [],
             "interpretation": "N/A",
         }
 
-        if balance_sheet.empty or income_stmt.empty:
+        if balance_sheet.empty or income_stmt.empty or len(income_stmt.columns) < 2:
             return _empty_result
 
-        # Colonnes : année courante vs précédente
+        # Colonnes : exercice courant vs précédent
         cols = income_stmt.columns
-        current_col = cols[0]
-        prev_col    = cols[1] if len(cols) >= 2 else cols[0]
-
-        # Aligner les colonnes du bilan avec l'income statement
+        current_col, prev_col = cols[0], cols[1]
         bs_cols = balance_sheet.columns
-        bs_current_col = bs_cols[0] if len(bs_cols) >= 1 else current_col
-        bs_prev_col    = bs_cols[1] if len(bs_cols) >= 2 else bs_current_col
+        bs_current_col = bs_cols[0]
+        bs_prev_col    = bs_cols[1] if len(bs_cols) >= 2 else None
 
-        def bs(row: str, col) -> float:
-            return StockDataService._safe_df_value(balance_sheet, row, col)
+        first = StockDataService._first_row
 
-        def is_(row: str, col) -> float:
-            return StockDataService._safe_df_value(income_stmt, row, col)
+        def bs(col, *rows):
+            return None if col is None else first(balance_sheet, col, *rows)
 
-        def cf(row: str, col) -> float:
-            return StockDataService._safe_df_value(cashflow_stmt, row, col)
+        def is_(col, *rows):
+            return first(income_stmt, col, *rows)
 
-        total_score   = 0
-        profitability = []
-        leverage      = []
-        operating     = []
+        def cf(col, *rows):
+            if cashflow_stmt is None or cashflow_stmt.empty or col not in cashflow_stmt.columns:
+                return None
+            return first(cashflow_stmt, col, *rows)
 
-        def add_criterion(category: list, criterion: str, passed: bool, detail: str):
-            nonlocal total_score
-            score = 1 if passed else 0
-            total_score += score
-            category.append({"criterion": criterion, "score": score, "detail": detail})
+        def ratio(a, b):
+            return a / b if a is not None and b is not None and b > 0 else None
+
+        def plus_grand(a, b):
+            return None if a is None or b is None else a > b
+
+        profitability, leverage, operating = [], [], []
+
+        def add_criterion(category: list, criterion: str, passed, detail: str):
+            score = None if passed is None else (1 if passed else 0)
+            statut = INCONNU if passed is None else (OK if passed else ECHEC)
+            if passed is None:
+                detail = f"Données manquantes. {detail}"
+            category.append({"criterion": criterion, "score": score, "statut": statut, "detail": detail})
+
+        def f(v, fmt):
+            return "inconnu" if v is None else format(v, fmt)
 
         # ── Rentabilité ────────────────────────────────────────────────
 
-        total_assets_curr = max(bs("Total Assets", bs_current_col), 1)
-        total_assets_prev = max(bs("Total Assets", bs_prev_col), 1)
-        net_income_curr   = is_("Net Income", current_col)
-        net_income_prev   = is_("Net Income", prev_col)
-        roa_curr = net_income_curr / total_assets_curr
-        roa_prev = net_income_prev / total_assets_prev
-
-        # CFO : cashflow statement en priorité, fallback sur info.operatingCashflow
-        cfo = 0.0
-        if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
-            cfo = cf("Operating Cash Flow", current_col)
-            if cfo == 0:
-                cfo = cf("Cash From Operations", current_col)
-        if cfo == 0:
-            cfo = StockDataService._safe_float(info.get("operatingCashflow", 0))
-        if cfo == 0:
-            cfo = StockDataService._safe_float(info.get("freeCashflow", 0))
+        total_assets_curr = bs(bs_current_col, "Total Assets")
+        total_assets_prev = bs(bs_prev_col, "Total Assets")
+        net_income_curr   = is_(current_col, "Net Income")
+        net_income_prev   = is_(prev_col, "Net Income")
+        roa_curr = ratio(net_income_curr, total_assets_curr)
+        roa_prev = ratio(net_income_prev, total_assets_prev)
+        cfo = cf(current_col, "Operating Cash Flow", "Cash Flow From Continuing Operating Activities")
 
         add_criterion(profitability, "ROA positive",
-                      roa_curr > 0,
-                      f"ROA={roa_curr:.3f}")
+                      None if roa_curr is None else roa_curr > 0,
+                      f"ROA={f(roa_curr, '.3f')}")
 
         add_criterion(profitability, "Cash flow opérationnel positif",
-                      cfo > 0,
-                      f"CFO={cfo:,.0f}")
+                      None if cfo is None else cfo > 0,
+                      f"CFO={f(cfo, ',.0f')}")
 
         add_criterion(profitability, "ROA en amélioration",
-                      roa_curr > roa_prev,
-                      f"Précédent={roa_prev:.3f} | Actuel={roa_curr:.3f}")
+                      plus_grand(roa_curr, roa_prev),
+                      f"Précédent={f(roa_prev, '.3f')} | Actuel={f(roa_curr, '.3f')}")
 
         add_criterion(profitability, "CFO > Bénéfice net (qualité bénéfices)",
-                      cfo > net_income_curr,
-                      f"CFO={cfo:,.0f} | NI={net_income_curr:,.0f}")
+                      plus_grand(cfo, net_income_curr),
+                      f"CFO={f(cfo, ',.0f')} | NI={f(net_income_curr, ',.0f')}")
 
         # ── Levier / Liquidité ─────────────────────────────────────────
 
-        def _get_ltd(col):
-            for row_name in ("Long Term Debt", "Long Term Debt And Capital Lease Obligation",
-                             "Long Term Debt And Due After One Year"):
-                val = bs(row_name, col)
-                if val != 0:
-                    return val
-            return 0.0
+        ltd_rows = ("Long Term Debt", "Long Term Debt And Capital Lease Obligation",
+                    "Long Term Debt And Due After One Year")
+        lev_curr = ratio(bs(bs_current_col, *ltd_rows), total_assets_curr)
+        lev_prev = ratio(bs(bs_prev_col, *ltd_rows), total_assets_prev)
 
-        ltd_curr = _get_ltd(bs_current_col)
-        ltd_prev = _get_ltd(bs_prev_col)
-        leverage_ratio_curr = ltd_curr / total_assets_curr
-        leverage_ratio_prev = ltd_prev / total_assets_prev
+        cr_curr = ratio(bs(bs_current_col, "Current Assets"), bs(bs_current_col, "Current Liabilities"))
+        cr_prev = ratio(bs(bs_prev_col, "Current Assets"), bs(bs_prev_col, "Current Liabilities"))
 
-        # F6 : current ratio amélioré (YoY)
-        curr_assets_curr = bs("Current Assets", bs_current_col)
-        curr_liab_curr   = bs("Current Liabilities", bs_current_col)
-        curr_assets_prev = bs("Current Assets", bs_prev_col)
-        curr_liab_prev   = bs("Current Liabilities", bs_prev_col)
-
-        cr_curr = (curr_assets_curr / curr_liab_curr) if curr_liab_curr > 0 else 0.0
-        cr_prev = (curr_assets_prev / curr_liab_prev) if curr_liab_prev > 0 else 0.0
-        if cr_curr == 0:
-            cr_curr = StockDataService._safe_float(info.get("currentRatio", 0))
-
-        # F7 : dilution
-        shares_curr = bs("Ordinary Shares Number", bs_current_col)
-        shares_prev = bs("Ordinary Shares Number", bs_prev_col)
-        if shares_curr == 0:
-            shares_curr = StockDataService._safe_float(info.get("sharesOutstanding", 0))
-        if shares_prev == 0:
-            stock_issued = 0.0
-            if not cashflow_stmt.empty and current_col in cashflow_stmt.columns:
-                stock_issued = abs(cf("Issuance Of Stock", current_col))
-            shares_prev = shares_curr + stock_issued
+        # Une seule ligne pour les deux années : « Share Issued » compte aussi les
+        # actions autodétenues, la mélanger avec « Ordinary Shares Number » fausserait la comparaison.
+        shares_curr = bs(bs_current_col, "Ordinary Shares Number")
+        shares_prev = bs(bs_prev_col, "Ordinary Shares Number")
 
         add_criterion(leverage, "Levier en baisse",
-                      leverage_ratio_curr < leverage_ratio_prev,
-                      f"Précédent={leverage_ratio_prev:.3f} | Actuel={leverage_ratio_curr:.3f}")
+                      plus_grand(lev_prev, lev_curr),
+                      f"Précédent={f(lev_prev, '.3f')} | Actuel={f(lev_curr, '.3f')}")
 
         add_criterion(leverage, "Current ratio en amélioration",
-                      cr_curr > cr_prev,
-                      f"Précédent={cr_prev:.2f} | Actuel={cr_curr:.2f}")
+                      plus_grand(cr_curr, cr_prev),
+                      f"Précédent={f(cr_prev, '.2f')} | Actuel={f(cr_curr, '.2f')}")
 
         add_criterion(leverage, "Pas de nouvelles actions émises",
-                      shares_curr <= shares_prev,
-                      f"Précédent={shares_prev:,.0f} | Actuel={shares_curr:,.0f}")
+                      None if shares_curr is None or shares_prev is None else shares_curr <= shares_prev,
+                      f"Précédent={f(shares_prev, ',.0f')} | Actuel={f(shares_curr, ',.0f')}")
 
-        # ── Efficacité Opérationnelle ───────────────────────────────────
+        # ── Efficacité opérationnelle ──────────────────────────────────
 
-        revenue_curr = max(is_("Total Revenue", current_col), 1)
-        revenue_prev = max(is_("Total Revenue", prev_col), 1)
+        revenue_curr = is_(current_col, "Total Revenue")
+        revenue_prev = is_(prev_col, "Total Revenue")
 
-        gross_profit_curr = is_("Gross Profit", current_col)
-        gross_profit_prev = is_("Gross Profit", prev_col)
-        if gross_profit_curr == 0:
-            cogs_curr = is_("Cost Of Revenue", current_col) or is_("Reconciled Cost Of Revenue", current_col)
-            gross_profit_curr = revenue_curr - cogs_curr
-        if gross_profit_prev == 0:
-            cogs_prev = is_("Cost Of Revenue", prev_col) or is_("Reconciled Cost Of Revenue", prev_col)
-            gross_profit_prev = revenue_prev - cogs_prev
+        def gross_profit(col, revenue):
+            gp = is_(col, "Gross Profit")
+            if gp is None:
+                cogs = is_(col, "Cost Of Revenue", "Reconciled Cost Of Revenue")
+                gp = revenue - cogs if revenue is not None and cogs is not None else None
+            return gp
 
-        gm_curr = gross_profit_curr / revenue_curr
-        gm_prev = gross_profit_prev / revenue_prev
-        at_curr = revenue_curr / total_assets_curr
-        at_prev = revenue_prev / total_assets_prev
+        gm_curr = ratio(gross_profit(current_col, revenue_curr), revenue_curr)
+        gm_prev = ratio(gross_profit(prev_col, revenue_prev), revenue_prev)
+        at_curr = ratio(revenue_curr, total_assets_curr)
+        at_prev = ratio(revenue_prev, total_assets_prev)
 
         add_criterion(operating, "Marge brute en amélioration",
-                      gm_curr > gm_prev,
-                      f"Précédent={gm_prev:.3f} | Actuel={gm_curr:.3f}")
+                      plus_grand(gm_curr, gm_prev),
+                      f"Précédent={f(gm_prev, '.3f')} | Actuel={f(gm_curr, '.3f')}")
 
         add_criterion(operating, "Rotation des actifs en amélioration",
-                      at_curr > at_prev,
-                      f"Précédent={at_prev:.3f} | Actuel={at_curr:.3f}")
+                      plus_grand(at_curr, at_prev),
+                      f"Précédent={f(at_prev, '.3f')} | Actuel={f(at_curr, '.3f')}")
 
-        # ── Interprétation ─────────────────────────────────────────────
+        # ── Score et interprétation ────────────────────────────────────
 
-        if total_score >= PIOTROSKI_HIGH_THRESHOLD:
-            interpretation = "Entreprise solide — très bonne gestion financière."
-        elif total_score >= PIOTROSKI_MID_THRESHOLD:
-            interpretation = "Entreprise avec du potentiel — analyse approfondie recommandée avant d'investir."
-        else:
-            interpretation = "Signaux financiers faibles — prudence fortement conseillée."
+        tous = profitability + leverage + operating
+        total_score = sum(1 for c in tous if c["score"] == 1)
+        inconnus = sum(1 for c in tous if c["score"] is None)
 
         return {
             "total_score":    total_score,
+            "inconnus":       inconnus,
             "profitability":  profitability,
             "leverage":       leverage,
             "operating":      operating,
-            "interpretation": interpretation,
+            "interpretation": StockDataService.interpret_piotroski(total_score, inconnus),
         }

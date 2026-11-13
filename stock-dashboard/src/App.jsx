@@ -348,11 +348,13 @@ const StockDashboard = () => {
               <h1 className={styles.stockName}>{name}</h1>
 
               <div className={styles.priceRow}>
-                <span className={styles.price}>{currencySymbol}{kpis.current_price}</span>
-                <span className={`${styles.priceChange} ${pricePositive ? styles.priceUp : styles.priceDown}`}>
-                  {pricePositive ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
-                  {pricePositive ? '+' : ''}{kpis.price_change}%
-                </span>
+                <span className={styles.price}>{kpis.current_price != null ? `${currencySymbol}${kpis.current_price}` : '—'}</span>
+                {kpis.price_change != null && (
+                  <span className={`${styles.priceChange} ${pricePositive ? styles.priceUp : styles.priceDown}`}>
+                    {pricePositive ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                    {pricePositive ? '+' : ''}{kpis.price_change}%
+                  </span>
+                )}
               </div>
 
               <div className={styles.headerBadges}>

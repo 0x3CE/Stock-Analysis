@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Plus, X, TrendingUp, TrendingDown } from 'lucide-react';
+import { getPiotroskiColor } from '../utils/Formatters';
 import styles from './CompareTab.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -193,11 +194,12 @@ const CompareTab = ({ mainAnalysis }) => {
                   <td className={styles.tdPiotroskiLabel}>Piotroski Score</td>
                   {allAnalyses.map((a, i) => {
                     const score = a.piotroski_score?.total_score;
-                    const color = score >= 7 ? '#22c55e' : score >= 4 ? '#f59e0b' : '#ef4444';
+                    const inconnus = a.piotroski_score?.inconnus || 0;
+                    const { text: color } = getPiotroskiColor(score, inconnus);
                     return (
                       <td key={i} className={i === 0 ? styles.tdPiotroskiMain : styles.tdPiotroski}>
                         <span className={styles.piotroskiScore} style={{ color }}>
-                          {score ?? 'N/A'}
+                          {score == null ? 'N/A' : inconnus > 0 ? `${score}–${score + inconnus}` : score}
                           <span className={styles.piotroskiMax}>/9</span>
                         </span>
                       </td>

@@ -13,11 +13,25 @@ export const SEARCH_DEBOUNCE_MS = 350;
 export const sortByYear = (arr) =>
   [...arr].sort((a, b) => a.year.localeCompare(b.year));
 
-/** Retourne couleur et libellé selon le score Piotroski. */
-export const getPiotroskiColor = (score) => {
+const zonePiotroski = (score) => {
   if (score >= PIOTROSKI_HIGH) return { text: '#22c55e', label: 'SOLIDE' };
   if (score >= PIOTROSKI_MID)  return { text: '#f59e0b', label: 'MOYEN' };
   return { text: '#ef4444', label: 'FAIBLE' };
+};
+
+const PIOTROSKI_INCONNU = { text: '#94a3b8', label: 'À VÉRIFIER' };
+
+/**
+ * Couleur et libellé selon le score Piotroski.
+ * score null : inconnu. Avec `inconnus` critères sans données, le score réel est
+ * entre score et score + inconnus : on ne conclut que si les deux bornes tombent
+ * dans la même zone (même règle que interpret_piotroski() côté backend).
+ */
+export const getPiotroskiColor = (score, inconnus = 0) => {
+  if (score == null) return PIOTROSKI_INCONNU;
+  const bas = zonePiotroski(score);
+  if (!inconnus) return bas;
+  return bas.label === zonePiotroski(score + inconnus).label ? bas : PIOTROSKI_INCONNU;
 };
 
 /** Retourne une couleur CSS selon la valeur du P/E ratio. */

@@ -83,6 +83,19 @@ describe('getPiotroskiColor', () => {
   it('score = 0 → FAIBLE', () => {
     expect(getPiotroskiColor(0).label).toBe('FAIBLE');
   });
+
+  it('score inconnu (null) → À VÉRIFIER, jamais FAIBLE', () => {
+    expect(getPiotroskiColor(null).label).toBe('À VÉRIFIER');
+    expect(getPiotroskiColor(undefined).label).toBe('À VÉRIFIER');
+  });
+
+  it('fourchette dans une seule zone → la zone', () => {
+    expect(getPiotroskiColor(7, 2).label).toBe('SOLIDE');
+  });
+
+  it('fourchette à cheval sur deux zones → À VÉRIFIER', () => {
+    expect(getPiotroskiColor(5, 4).label).toBe('À VÉRIFIER');
+  });
 });
 
 // ---------------------------------------------------------------------------
