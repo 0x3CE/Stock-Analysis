@@ -1,19 +1,20 @@
 """crible_routes.py — Résultats du Crible des marchés (environ 1 300 sociétés)."""
 
 import logging
+import os
 
 from fastapi import APIRouter, HTTPException, Request
 
 from core.config import settings
 from core.limiter import limiter
 from routes.analysis_routes import SafeJSONResponse, _validate_ticker
-from services.crible_service import CribleIndisponible, CribleService
+from services.crible_service import CribleIndisponible, creer_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/crible")
-service = CribleService(settings.CRIBLE_DOSSIER)
+service = creer_service(settings.CRIBLE_DOSSIER, settings.CRIBLE_R2_BUCKET, os.environ)
 
-MESSAGE_ABSENT = "Pas encore de données du crible : lancer crible/crible_marches.py."
+MESSAGE_ABSENT = "Pas encore de données du crible : lancer crible/crible_marches.py, puis crible/publier_r2.py pour le site en ligne."
 
 
 @router.get("")

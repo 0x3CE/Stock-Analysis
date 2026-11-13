@@ -32,11 +32,21 @@ services:
     name: stock-analysis-api
     env: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    # L'extension httpfs de DuckDB (lecture de Cloudflare R2) est installée dans backend/.duckdb_extensions
+    buildCommand: pip install -r requirements.txt && python -c "import duckdb; c = duckdb.connect(); c.execute(\"SET extension_directory='.duckdb_extensions'\"); c.execute('INSTALL httpfs')"
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     plan: free
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.3"
       - key: ALLOWED_ORIGINS
+        sync: false
+      # Crible des marchés sur Cloudflare R2 (remplis dans le tableau de bord Render, jamais dans le dépôt)
+      - key: CRIBLE_R2_BUCKET
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
         sync: false

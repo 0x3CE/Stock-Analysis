@@ -109,3 +109,59 @@ def test_reponse_compressee(service, tmp_path):
         assert len(r.json()["lignes"]) == 52
     finally:
         del LIGNES[-50:]
+
+
+# ---------------------------------------------------------------------------
+# Version en ligne (R2) : même code, préfixe local à la place de r2://, sans réseau
+# ---------------------------------------------------------------------------
+
+from services.crible_service import CribleDistant, CribleService as _Local, creer_service  # noqa: E402
+
+
+def _publier(dossier, lignes, meta):
+    import duckdb
+    df = pd.DataFrame(lignes)
+    df.to_parquet(os.path.join(dossier, "crible_resultats.parquet"), index=False)
+    con = duckdb.connect()
+    con.execute("CREATE TABLE m AS SELECT ?::VARCHAR AS meta_json", [json.dumps(meta)])
+    con.execute(f"COPY m TO '{os.path.join(dossier, 'crible_meta.parquet')}' (FORMAT parquet)")
+    con.close()
+
+
+def test_distant_lecture_et_cache(tmp_path, monkeypatch):
+    _publier(tmp_path, LIGNES[:2], {"date_extraction": "2026-11-13 14:11", "nb_societes": 2})
+    t = [1000.0]
+    s = CribleDistant(str(tmp_path), identifiants=None, rafraichir_s=600, horloge=lambda: t[0])
+    monkeypatch.setattr(crible_routes, "service", s)
+    j = client.get("/api/crible").json()
+    assert j["meta"]["source_fichier"] == "r2" and len(j["lignes"]) == 2
+    assert j["meta"]["date_extraction"] == "2026-11-13 14:11"
+    # Nouveau fichier publié : pas relu avant 10 min, relu après
+    _publier(tmp_path, LIGNES[:1], {"date_extraction": "2026-11-14 08:00"})
+    t[0] += 60
+    assert len(client.get("/api/crible").json()["lignes"]) == 2
+    t[0] += 600
+    assert len(client.get("/api/crible").json()["lignes"]) == 1
+
+
+def test_distant_panne_garde_les_donnees(tmp_path, monkeypatch):
+    _publier(tmp_path, LIGNES[:2], {})
+    t = [0.0]
+    s = CribleDistant(str(tmp_path), rafraichir_s=10, horloge=lambda: t[0])
+    monkeypatch.setattr(crible_routes, "service", s)
+    assert len(client.get("/api/crible").json()["lignes"]) == 2
+    os.remove(os.path.join(tmp_path, "crible_resultats.parquet"))   # R2 injoignable
+    t[0] += 20
+    assert len(client.get("/api/crible").json()["lignes"]) == 2      # dernières données gardées
+
+
+def test_distant_jamais_lu_503(tmp_path, monkeypatch):
+    monkeypatch.setattr(crible_routes, "service", CribleDistant(str(tmp_path / "vide")))
+    assert client.get("/api/crible").status_code == 503
+
+
+def test_choix_de_la_source(tmp_path):
+    assert isinstance(creer_service(tmp_path, None, {}), _Local)
+    assert not isinstance(creer_service(tmp_path, None, {}), CribleDistant)
+    d = creer_service(tmp_path, "mon-bucket", {"R2_ACCOUNT_ID": "a", "R2_ACCESS_KEY_ID": "b", "R2_SECRET_ACCESS_KEY": "c"})
+    assert isinstance(d, CribleDistant) and d.prefixe == "r2://mon-bucket/crible"

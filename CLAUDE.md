@@ -21,7 +21,7 @@ Version du 13/11/2026. Ce fichier ne contient aucune donnée personnelle (voir �
 | Étape | Contenu | État |
 |---|---|---|
 | 1 | Scripts du crible dans `crible/`. Backend sans 0 par défaut, Piotroski à trois valeurs. | Fait (13/11/2026) : 1 351 sociétés au premier passage complet. |
-| 2 | Le crible dans le site : vue « Crible des marchés », profils défensif, offensif, rendement et valeur, filtres, fiche société, choix de la devise (EUR, USD, CHF, JPY, GBP). | Première version (13/11/2026). Reste : seuils modifiables, grille « Vérifié à la main », hébergement des données (R2). |
+| 2 | Le crible dans le site : vue « Crible des marchés », profils défensif, offensif, rendement et valeur, filtres, fiche société, choix de la devise (EUR, USD, CHF, JPY, GBP). | Première version (13/11/2026), R2 en place : premier envoi le 13/11/2026 (1 352 sociétés, bucket `stock-analysis-crible`). Reste : variables R2 sur Render, seuils modifiables, grille « Vérifié à la main ». |
 | 3 | 5e profil « Résilience » : baisse maximale et temps de retour au plus haut pendant 2000-2002, 2008-2009, mars 2020 et 2022, comparés à l'indice ; dividende maintenu ou coupé. Repères : or, obligations, S&P 500. Contexte macro avec FRED et la Banque mondiale. | À faire |
 | 4 | Comptes (Supabase) et portefeuille : actions, ETF et or. Répartition par secteur, pays et devise, concentration, comportement dans les krachs passés. | À faire |
 | 5 | Agent branché sur la clé d'API Claude ou GPT de l'utilisateur. Passage sur un VPS (DuckDB), fin du cold start de Render. | Plus tard |
@@ -40,7 +40,8 @@ Décisions d'architecture (13/11/2026) :
 | `backend/` | API FastAPI (Python 3.12) : analyse d'un ticker, Piotroski, Buffett Indicator, instantané des marchés. |
 | `stock-dashboard/` | Front React 18 + Vite : recherche, vue d'ensemble, financiers, Piotroski, Buffett, comparaison. |
 | `crible/` | Crible des marchés : extraction de l'univers (environ 1 300 sociétés) et profil défensif. |
-| `render.yaml`, `docker-compose.yml` | Déploiement Render et lancement local. |
+| `backend/Dockerfile`, `stock-dashboard/Dockerfile` (+ `serve.json`) | Images Docker des deux services Render. |
+| `docker-compose.yml` | Lancement local. `render.yaml` n'est pas utilisé par les services actuels. |
 | `task/todo.md` | Anciens sprints (non versionné). |
 
 ## Commandes
@@ -58,7 +59,15 @@ python3 crible_marches.py --fils 2          # en cas de nombreuses erreurs 429
 python3 crible_marches.py --tickers NVDA,ASML.AS,ROG.SW
 python3 crible_marches.py --rafraichir      # ignore le cache (valable 3 jours)
 python3 screener_qualite.py --univers univers.csv   # filtre défensif seul, CSV « ; »
+python3 publier_r2.py                       # envoie la version publique sur Cloudflare R2 (site en ligne)
+python3 test_publier.py                     # tests de la publication, hors ligne
 ```
+
+**Publication sur R2** (`publier_r2.py`), après chaque extraction :
+- Identifiants dans les variables d'environnement `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` et `R2_BUCKET`, jamais dans le code. L'utilisateur les garde dans un fichier qu'il charge lui-même ; Claude ne le lit pas.
+- **Version publique uniquement :** sociétés au statut `OK`, sans la liste « Extra » (positions détenues, `extra_local.txt`). Le site est public.
+- Fichiers écrits dans le bucket : `crible/crible_resultats.parquet`, `crible/crible_meta.parquet` (une colonne `meta_json`) et une copie datée `crible/historique/AAAA-MM-JJ.parquet`.
+- L'écriture passe par DuckDB et son extension `httpfs`. Au premier usage, DuckDB la télécharge depuis son site officiel.
 
 **Backend**
 
@@ -175,7 +184,7 @@ Après chaque passage complet :
   - `interpret_piotroski()` ne conclut que si toute la fourchette tombe dans une seule zone : 7 et plus, 4 à 6, moins de 4.
   - Seuls les états annuels servent : pas de repli sur les chiffres des 12 derniers mois de `stock.info`. Ces replis ont été retirés le 13/11/2026, car ils mélangeaient deux périodes ou reconstituaient un nombre d'actions.
 - Seuils Piotroski : `PIOTROSKI_HIGH_THRESHOLD = 7`, `PIOTROSKI_MID_THRESHOLD = 4`, identiques dans `stock-dashboard/src/utils/Formatters.js`.
-- **`services/crible_service.py` :** lit `crible_resultats.parquet` avec DuckDB, et `meta` dans `crible_resultats.json`. Repli sur le JSON si DuckDB ou le Parquet manquent. Données gardées en mémoire, relues quand un fichier change ; 503 si aucun fichier. Dossier : `CRIBLE_DOSSIER` (par défaut `crible/` du dépôt ; plus tard R2).
+- **`services/crible_service.py` :** en ligne, si `CRIBLE_R2_BUCKET` est défini, `CribleDistant` lit `r2://<bucket>/crible/` avec DuckDB. Il relit au plus toutes les 10 minutes et garde les dernières données si R2 ne répond pas (503 seulement si rien n'a jamais été lu). L'extension `httpfs` est rangée dans `backend/.duckdb_extensions` et installée au build par `backend/Dockerfile`. Les variables R2 se saisissent dans l'onglet « Environment » du service API sur Render. En local : lit `crible_resultats.parquet` avec DuckDB, et `meta` dans `crible_resultats.json`. Repli sur le JSON si DuckDB ou le Parquet manquent. Données gardées en mémoire, relues quand un fichier change ; 503 si aucun fichier. Dossier : `CRIBLE_DOSSIER` (par défaut `crible/` du dépôt ; plus tard R2).
 - Configuration : `ALLOWED_ORIGINS` (CORS) dans `backend/.env`. `duckdb==2.0.0` est dans `requirements.txt`.
 
 ## Front (`stock-dashboard/`)
@@ -183,7 +192,7 @@ Après chaque passage complet :
 - React 18, Vite 5, Recharts, CSS modules avec des jetons de design dans `src/styles/tokens.css`.
 - **Design « terminal »**, d'après la capture d'écran de l'utilisateur (13/11/2026) :
   - fond marine sombre avec un quadrillage discret, et vert néon `--accent` (#22D468) ;
-  - aspect pixel art voulu : titres, logo et nom de la société en Pixelify Sans (`--font-display`). Le cours et sa variation sont en Press Start 2P (`--font-pixel-chiffres`), une police pixel « façon Minecraft » aux chiffres nets ; jamais de chiffres en Pixelify Sans, où les 9 se lisaient comme des S (13/11/2026). Les autres chiffres sont en JetBrains Mono (`--font-mono`). Le texte courant est en Inter. Les trois viennent de Google Fonts, autorisé dans la CSP de `render.yaml` ;
+  - aspect pixel art voulu : titres, logo et nom de la société en Pixelify Sans (`--font-display`). Le cours et sa variation sont en Press Start 2P (`--font-pixel-chiffres`), une police pixel « façon Minecraft » aux chiffres nets ; jamais de chiffres en Pixelify Sans, où les 9 se lisaient comme des S (13/11/2026). Les autres chiffres sont en JetBrains Mono (`--font-mono`). Le texte courant est en Inter. Les trois viennent de Google Fonts, autorisé dans la CSP de `stock-dashboard/serve.json` (et de `render.yaml`) ;
   - badges à contour : vert pour le secteur, bleu pour la bourse et la devise.
 
   Recharts écrit ses couleurs dans des attributs SVG : elles sont en dur dans les composants de graphique, alignées sur les jetons.
@@ -201,7 +210,7 @@ Après chaque passage complet :
   La devise choisie est gardée dans le navigateur (`localStorage`). « Analyse complète » ouvre la vue Analyse de la société.
 - `getPiotroskiColor(score, inconnus)` applique la même règle que `interpret_piotroski()`. Un score `null` ou une fourchette à cheval sur deux zones donne « À VÉRIFIER », jamais « FAIBLE ».
 - Configuration : `VITE_API_URL` dans `stock-dashboard/.env`.
-- Déploiement : site statique et API sur Render (`render.yaml`).
+- Déploiement : deux services Docker sur Render (Francfort), « Stock Analysis Dashboard » et « Stock-Analysis ». Les en-têtes de sécurité du site, dont la CSP, sont dans `stock-dashboard/serve.json` : c'est lui qui compte en ligne, pas `render.yaml` (constaté le 13/11/2026).
 
 ## Conventions de code
 

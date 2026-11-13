@@ -22,5 +22,8 @@ class Settings:
     # (crible_resultats.parquet et crible_resultats.json). Par défaut, le dossier
     # crible/ du dépôt ; plus tard, un emplacement Cloudflare R2.
     CRIBLE_DOSSIER = Path(os.getenv("CRIBLE_DOSSIER", Path(__file__).resolve().parents[2] / "crible"))
+    # En ligne : bucket Cloudflare R2 rempli par crible/publier_r2.py. Défini → lecture sur R2
+    # (avec R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY). Absent → dossier local.
+    CRIBLE_R2_BUCKET = os.getenv("CRIBLE_R2_BUCKET") or None
 
 settings = Settings()

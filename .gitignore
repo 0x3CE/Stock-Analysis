@@ -124,3 +124,4 @@ resultats_filtre.csv
 crible/extra_local.txt
 __pycache__/
 stock-dashboard/test-results/
+.duckdb_extensions/
