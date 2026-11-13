@@ -1,7 +1,14 @@
-/* Copie du moteur de la page claude.ai « Crible des marchés » (version 1794489957-b6c1, 12/11/2026).
-   Référence pour test_concordance.py : evaluer() doit donner les mêmes statuts que screener_qualite.evaluer(). */
-/* Moteur du filtre : même logique que evaluer() dans screener_qualite.py.
-   Une valeur peut être un nombre, une plage [min, max] (sources divergentes) ou null (inconnu). */
+/**
+ * moteur.js — Moteur du Crible des marchés : profils défensif, offensif, rendement et valeur.
+ *
+ * Repris tel quel de la page claude.ai « Crible des marchés » (version du 12/11/2026).
+ * Le profil défensif est la copie exacte de evaluer() dans crible/screener_qualite.py :
+ * crible/test_concordance.py compare les deux sur des milliers de cas. Toute modification
+ * de la logique se reporte des deux côtés (règle 7 du CLAUDE.md : rien ne change en silence).
+ */
+
+const _racine = {};
+
 (function (root) {
   "use strict";
   const OK = "OK", ECHEC = "ÉCHEC", INCONNU = "INCONNU";
@@ -465,6 +472,9 @@
     exclusion: exclusion, fmt: fmt, fmtF: fmtF, signe: signe, evaluer: evaluer, verdict: verdict, evaluerProfil: evaluerProfil,
     lireFichier: lireFichier, parseCSV: parseCSV, normaliserLigne: normaliserLigne,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = root.Moteur;
-})(typeof window !== "undefined" ? window : globalThis);
+})(_racine);
 
+
+
+export const Moteur = _racine.Moteur;
+export default Moteur;

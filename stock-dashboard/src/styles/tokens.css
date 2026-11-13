@@ -1,90 +1,106 @@
 /* ============================================================
-   Design Tokens — Aurum Wealth Dashboard
-   Thème clair premium (crème / ivoire / marine)
+   Design Tokens — Stock Analysis Dashboard
+   Thème « terminal » : fond marine sombre, vert néon, chiffres en
+   police à chasse fixe, quadrillage discret en arrière-plan.
    ============================================================ */
 
 :root {
+  color-scheme: dark;
+
   /* ── Arrière-plans ─────────────────────────────────────── */
-  --bg-base:     #F4F1EA;
-  --bg-card:     #FFFFFF;
-  --bg-surface:  #FFFFFF;
-  --bg-elevated: #F8F5EE;
-  --bg-muted:    #F1ECE2;
-  --bg-header:   #FFFFFF;
-  --bg-ticker:   #12172A;
+  --bg-base:     #0A1019;
+  --bg-card:     #0E1621;
+  --bg-surface:  #0B131D;
+  --bg-elevated: #121C29;
+  --bg-muted:    #16212F;
+  --bg-header:   #0A1019;
+  --bg-ticker:   #0A1019;
+  --grid-line:   rgba(148, 163, 184, 0.045);
 
   /* ── Bordures ──────────────────────────────────────────── */
-  --border-subtle:  #E4DECE;
-  --border-default: #D7D0BF;
-  --border-strong:  #BBAF96;
-  --border-divider: #ECE5D8;
-  --border-section: #E4DECE;
+  --border-subtle:  #1C2734;
+  --border-default: #263445;
+  --border-strong:  #3A4B60;
+  --border-divider: #172230;
+  --border-section: #1C2734;
 
   /* ── Textes ────────────────────────────────────────────── */
-  --text-primary:   #1B2030;
-  --text-secondary: #2A2F3D;
-  --text-muted:     #5A5F6D;
-  --text-dim:       #6F736F;
-  --text-faint:     #8C8779;
-  --text-ghost:     #A9A294;
+  --text-primary:   #E8EEF5;
+  --text-secondary: #C9D3DE;
+  --text-muted:     #93A1B2;
+  --text-dim:       #7A8899;
+  --text-faint:     #6B7A8C;
+  --text-ghost:     #4B5869;
 
   /* Alias sémantiques */
-  --ink-primary:    #1B2030;
-  --ink-muted:      #8C8779;
-  --hairline:       #E4DECE;
+  --ink-primary:    #E8EEF5;
+  --ink-muted:      #6B7A8C;
+  --hairline:       #1C2734;
 
   /* ── Couleurs d'accentuation ───────────────────────────── */
-  --accent:         #BD8A3D;
-  --accent-hover:   #A77732;
-  --accent-light:   #D2A35D;
-  --gold:           #BD8A3D;
-  --gold-light:     #CFA668;
-  --green:          #2F6B4A;
-  --red:            #AE4430;
-  --orange:         #d97706;
-  --purple:         #7c3aed;
-  --metric-positive-bg: #E9F1EC;
-  --metric-negative-bg: #F6EAE6;
+  --accent:         #22D468;
+  --accent-hover:   #1FBF5E;
+  --accent-light:   #4ADE80;
+  --accent-ink:     #04130A;   /* texte sur fond vert */
+  --accent-soft:    rgba(34, 212, 104, 0.12);
+  --accent-glow:    0 0 18px rgba(34, 212, 104, 0.35);
+  --gold:           #EAB308;
+  --gold-light:     #FACC15;
+  --green:          #22D468;
+  --red:            #F0524F;
+  --orange:         #F59E0B;
+  --purple:         #A78BFA;
+  --blue:           #4C8DFF;
+  --blue-soft:      rgba(76, 141, 255, 0.12);
+  --yellow:         #EAB308;
+  --yellow-soft:    rgba(234, 179, 8, 0.14);
+  --metric-positive-bg: rgba(34, 212, 104, 0.12);
+  --metric-negative-bg: rgba(240, 82, 79, 0.12);
 
   /* ── Typographie ───────────────────────────────────────── */
-  --font-sans:    'Inter', sans-serif;
-  --font-mono:    'IBM Plex Mono', monospace;
-  --font-display: 'Fraunces', serif;
+  --font-sans:    'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  /* Police pixel des titres, du nom de la société et du cours. Pour en essayer une autre,
+     ne changer que cette ligne et l'import de index.css (ex. 'VT323', 'Silkscreen'). */
+  --font-display: 'Pixelify Sans', 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* Chiffres pixel « façon Minecraft » : blocs carrés, chiffres sans ambiguïté
+     (en Pixelify Sans, les 9 se lisaient comme des S). Réservé au cours et à sa variation. */
+  --font-pixel-chiffres: 'Press Start 2P', 'JetBrains Mono', ui-monospace, monospace;
 
   /* ── Bordures arrondies ─────────────────────────────────── */
-  --radius-sm:   6px;
-  --radius-md:   8px;
-  --radius-lg:   12px;
-  --radius-xl:   14px;
-  --radius-2xl:  18px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   10px;
+  --radius-2xl:  10px;
   --radius-full: 9999px;
 
   /* ── Ombres ────────────────────────────────────────────── */
-  --shadow-card:   0 2px 12px rgba(0, 0, 0, 0.07);
-  --shadow-drop:   0 8px 24px rgba(0, 0, 0, 0.10);
-  --shadow-accent: 0 4px 14px rgba(189, 138, 61, 0.25);
+  --shadow-card:   0 0 0 1px rgba(255, 255, 255, 0.01), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --shadow-drop:   0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-accent: 0 0 18px rgba(34, 212, 104, 0.35);
 
   /* ── Breakpoints ────────────────────────────────────────── */
   --bp-mobile:  640px;
   --bp-tablet: 1024px;
 
   /* ── Espacements responsives ───────────────────────────── */
-  --card-padding:      24px;
-  --container-padding: 32px 24px;
+  --card-padding:      20px;
+  --container-padding: 20px 32px 32px;
   --section-gap:       20px;
 }
 
 @media (max-width: 1024px) {
   :root {
-    --card-padding:      20px;
-    --container-padding: 24px 20px;
+    --card-padding:      18px;
+    --container-padding: 20px 20px 28px;
   }
 }
 
 @media (max-width: 640px) {
   :root {
-    --card-padding:      16px;
-    --container-padding: 20px 16px;
-    --section-gap:       16px;
+    --card-padding:      14px;
+    --container-padding: 16px 16px 24px;
+    --section-gap:       14px;
   }
 }

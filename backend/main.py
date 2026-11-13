@@ -7,11 +7,12 @@ pip install fastapi uvicorn yfinance pandas python-dotenv numpy
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from core.config import settings
 from core.limiter import limiter
-from routes import analysis_routes, health_routes, buffet_routes, market_routes
+from routes import analysis_routes, health_routes, buffet_routes, market_routes, crible_routes, cotations_routes
 
 # === Configuration FastAPI ===
 app = FastAPI(
@@ -23,6 +24,9 @@ app = FastAPI(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Compression : le crible pèse plusieurs Mo en JSON
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS
 app.add_middleware(
@@ -38,3 +42,5 @@ app.include_router(health_routes.router)
 app.include_router(analysis_routes.router)
 app.include_router(buffet_routes.router)
 app.include_router(market_routes.router)
+app.include_router(crible_routes.router)
+app.include_router(cotations_routes.router)

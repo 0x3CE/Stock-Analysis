@@ -1,74 +1,49 @@
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Shell layout : main + sidebar ─────────────────────────── */
-
-.overviewShell {
-  width: 100%;
-  max-width: 1640px;
-  margin: 0 auto;
-}
-
 .overviewGrid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 540px);
+  gap: 20px;
   align-items: start;
 }
 
-.mainColumn {
-  min-width: 0;
-}
-
-.sidebarColumn {
-  min-width: 0;
-}
-
-/* ── Carte graphique ─────────────────────────────────────────── */
+.mainColumn { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.sidebarColumn { min-width: 0; }
 
 .chartCard {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-lg);
   padding: var(--card-padding);
-  box-shadow: var(--shadow-card);
-  margin-bottom: 24px;
-  animation: cardIn 0.4s ease 0.15s both;
 }
 
 .cardHeader {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .cardTitle {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 18px var(--font-display);
   color: var(--text-primary);
 }
 
+.cardIcon { color: var(--accent); }
+
 .cardUnit {
-  font-size: 11px;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 500 14px var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-/* ── Responsive ────────────────────────────────────────────── */
+.vide { padding: 24px 0; font: 14px var(--font-mono); color: var(--text-faint); }
 
 @media (max-width: 1100px) {
-  .overviewGrid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-
-@media (max-width: 640px) {
-  .chartCard {
-    padding: 16px;
-  }
+  .overviewGrid { grid-template-columns: 1fr; }
 }

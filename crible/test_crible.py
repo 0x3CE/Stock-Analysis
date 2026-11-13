@@ -320,6 +320,14 @@ class TestTauxEtCapi(unittest.TestCase):
         self.assertAlmostEqual(l["capi_usd"] / 1e9, 312.2, places=1)  # et non 3,1 Md$
         self.assertAlmostEqual(l["echanges_jour_usd"] / 1e6, 1349.2 * 20 * 0.013227514028549194, places=3)
 
+    def test_taux_par_ligne(self):
+        """Shell : cours en pence, comptes en USD."""
+        taux = {"GBp": 0.0132, "USD": 1.0}
+        l = cm.ajouter_capi_usd([{"capi": 1.0, "devise": "GBp", "devise_comptable": "USD"},
+                                 {"capi": 1.0, "devise": "SEK", "devise_comptable": None}], taux)
+        self.assertEqual((l[0]["taux_usd_devise"], l[0]["taux_usd_comptable"]), (0.0132, 1.0))
+        self.assertEqual((l[1]["taux_usd_devise"], l[1]["taux_usd_comptable"]), (None, None))
+
 
 class TestUnivers(unittest.TestCase):
     def test_tickers_demandes_sans_reseau(self):
@@ -440,7 +448,7 @@ class TestExport(unittest.TestCase):
 
     def test_champs_lus_par_le_site(self):
         """Chaque champ du SCHEMA du site existe dans l'export (contrat avec le site)."""
-        with open(os.path.join(ICI, "moteur_site.js"), encoding="utf-8") as f:
+        with open(os.path.join(os.path.dirname(ICI), "stock-dashboard", "src", "crible", "moteur.js"), encoding="utf-8") as f:
             js = f.read()
         bloc = js[js.index("const SCHEMA"):js.index("function normaliserLigne")]
         champs_site = set(re.findall(r'"([a-z0-9_]+)"', bloc))

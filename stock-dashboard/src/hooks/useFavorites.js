@@ -1,34 +1,16 @@
-import { useState } from 'react';
-
-const STORAGE_KEY = 'stock_favorites';
-
-function load() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
-  }
-}
-
-function save(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
+import { useCallback } from 'react';
+import { useLocalState } from './useLocalState';
 
 /**
- * Gère une liste de tickers favoris persistée dans localStorage.
+ * Liste de tickers favoris (la watchlist), gardée dans le navigateur.
+ * Même clé qu'avant ('stock_favorites') : les favoris existants sont conservés.
  */
 export function useFavorites() {
-  const [favorites, setFavorites] = useState(load);
+  const [favorites, setFavorites] = useLocalState('stock_favorites', []);
 
-  const toggle = (ticker) => {
-    setFavorites((prev) => {
-      const next = prev.includes(ticker)
-        ? prev.filter((t) => t !== ticker)
-        : [...prev, ticker];
-      save(next);
-      return next;
-    });
-  };
+  const toggle = useCallback((ticker) => {
+    setFavorites((prev) => (prev.includes(ticker) ? prev.filter((t) => t !== ticker) : [...prev, ticker]));
+  }, [setFavorites]);
 
   const isFavorite = (ticker) => favorites.includes(ticker);
 

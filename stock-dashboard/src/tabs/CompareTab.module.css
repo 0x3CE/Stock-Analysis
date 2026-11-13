@@ -74,7 +74,7 @@
   cursor: pointer;
   transition: background 0.2s, color 0.2s;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }
 
 .addBtn:disabled {
@@ -180,7 +180,7 @@
 
 .thMain {
   composes: th;
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(34, 212, 104, 0.08);
   border-radius: 8px 8px 0 0;
 }
 
@@ -238,7 +238,7 @@
 
 .tdMain {
   composes: td;
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(34, 212, 104, 0.05);
 }
 
 .cellValue {
@@ -249,7 +249,7 @@
 }
 
 .trPiotroski {
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(34, 212, 104, 0.05);
 }
 
 .tdPiotroskiLabel {
@@ -269,7 +269,7 @@
 
 .tdPiotroskiMain {
   composes: tdPiotroski;
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(34, 212, 104, 0.05);
 }
 
 .piotroskiScore {

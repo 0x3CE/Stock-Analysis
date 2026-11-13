@@ -1,145 +1,112 @@
-@keyframes cardIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-2xl);
+  border-radius: var(--radius-lg);
   padding: var(--card-padding);
-  box-shadow: var(--shadow-card);
-  animation: cardIn 0.35s ease both;
 }
 
 .title {
-  font-family: var(--font-display);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  font: 600 18px var(--font-display);
   color: var(--text-primary);
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 20px;
 }
 
-/* ── Grille 4 × 2 ────────────────────────────────────────── */
+.titleIcon { display: inline-flex; color: var(--accent); }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-/* ── Tuile individuelle ──────────────────────────────────── */
-
 .tile {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 16px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transition: border-color 0.18s, box-shadow 0.18s;
-}
-
-.tile:hover {
-  border-color: var(--border-default);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  gap: 14px;
+  padding: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
 }
 
 .tileHeader {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
+.tileIcon { flex: none; color: var(--blue); }
+
 .label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-faint);
-  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 14px var(--font-sans);
+  color: var(--text-secondary);
 }
 
 .badge {
-  display: inline-flex;
-  align-items: center;
+  flex: none;
   padding: 3px 8px;
-  border-radius: var(--radius-full);
-  font-size: 10px;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
+  font: 600 12px var(--font-sans);
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .badgeGood {
-  color: var(--green);
-  background: var(--metric-positive-bg);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(34, 212, 104, 0.35);
 }
 
 .badgeWarn {
-  color: var(--red);
-  background: var(--metric-negative-bg);
+  color: #fff;
+  background: rgba(240, 82, 79, 0.85);
 }
 
 .badgeNeutral {
-  color: var(--text-faint);
-  background: var(--bg-muted);
+  color: var(--gold);
+  background: var(--yellow-soft);
+  border: 1px solid rgba(234, 179, 8, 0.35);
 }
 
 .value {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-weight: 600;
+  font: 500 clamp(1.25rem, 1.9vw, 1.6rem) var(--font-mono);
   color: var(--text-primary);
-  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-/* ── Mini barre de position ──────────────────────────────── */
 
 .track {
   position: relative;
-  width: 100%;
-  height: 5px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--metric-negative-bg), #f2efe8, var(--metric-positive-bg));
-  margin-top: 2px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, rgba(240, 82, 79, 0.5), rgba(234, 179, 8, 0.5), rgba(34, 212, 104, 0.6));
 }
 
 .thumb {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
   width: 10px;
   height: 10px;
-  border-radius: 999px;
-  border: 2px solid #fff;
-  background: var(--accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  background: var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-surface);
+  transform: translate(-50%, -50%);
 }
 
-/* ── Responsive ──────────────────────────────────────────── */
-
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+@media (max-width: 1280px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (max-width: 560px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
-  .tile {
-    padding: 12px;
-  }
-
-  .value {
-    font-size: 13px;
-  }
-
-  .track {
-    display: none;
-  }
+@media (max-width: 520px) {
+  .grid { grid-template-columns: 1fr; }
 }

@@ -18,7 +18,7 @@ export const PiotroskiGauge = ({ score, inconnus = 0, maxScore = 9 }) => {
       <svg width="100%" viewBox="0 0 176 108">
         <path
           d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
-          fill="none" stroke="#1e293b" strokeWidth={10} strokeLinecap="round"
+          fill="none" stroke="#263445" strokeWidth={10} strokeLinecap="round"
         />
         <path
           d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
@@ -27,11 +27,11 @@ export const PiotroskiGauge = ({ score, inconnus = 0, maxScore = 9 }) => {
           style={{ filter: `drop-shadow(0 0 8px ${colors.text})` }}
         />
         <text x={cx} y={cy - 10} textAnchor="middle" fill={colors.text}
-          fontSize={affiche.length > 2 ? 26 : 34} fontWeight="700" fontFamily="Syne, sans-serif">
+          fontSize={affiche.length > 2 ? 26 : 34} fontWeight="700" fontFamily="JetBrains Mono, ui-monospace, monospace">
           {affiche}
         </text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fill="#475569"
-          fontSize="13" fontFamily="DM Sans, sans-serif">
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="#93A1B2"
+          fontSize="13" fontFamily="JetBrains Mono, ui-monospace, monospace">
           / {maxScore}
         </text>
       </svg>

@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 
 class Settings:
     APP_TITLE = "Stock Analysis API"
@@ -16,5 +17,10 @@ class Settings:
 
     # Regex de validation pour les tickers (AAPL, BRK.B, ^GSPC, EUR=X, etc.)
     TICKER_REGEX = re.compile(r"^[A-Z0-9.\-\^=]{1,15}$")
+
+    # Dossier des fichiers produits par crible/crible_marches.py
+    # (crible_resultats.parquet et crible_resultats.json). Par défaut, le dossier
+    # crible/ du dépôt ; plus tard, un emplacement Cloudflare R2.
+    CRIBLE_DOSSIER = Path(os.getenv("CRIBLE_DOSSIER", Path(__file__).resolve().parents[2] / "crible"))
 
 settings = Settings()

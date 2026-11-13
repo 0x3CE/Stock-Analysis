@@ -40,11 +40,11 @@ const epsStatus = (value) => {
   return { tone: 'warn', label: 'Négatif' };
 };
 
-const formatCurrency = (value) => (value == null ? '—' : `$${value.toFixed(2)}`);
+const formatCurrency = (value, symbole = '$') => (value == null ? '—' : `${symbole}${value.toFixed(2)}`);
 const formatPercent = (value) => (value == null ? '—' : `${value.toFixed(1)}%`);
 const formatNumber = (value, digits = 2) => (value == null ? '—' : value.toFixed(digits));
 
-const buildRange52wRow = (kpis) => {
+const buildRange52wRow = (kpis, symbole = '$') => {
   const current = toNumber(kpis.current_price);
   const low = toNumber(kpis.low_52w);
   const high = toNumber(kpis.high_52w);
@@ -55,7 +55,7 @@ const buildRange52wRow = (kpis) => {
   return {
     key: 'range_52w',
     label: 'Range 52 semaines',
-    value: hasRange ? `${formatCurrency(low)} – ${formatCurrency(high)}` : '—',
+    value: hasRange ? `${formatCurrency(low, symbole)} → ${formatCurrency(high, symbole)}` : '—',
     position: percentile,
     status: percentile == null
       ? { tone: 'neutral', label: 'N/A' }
@@ -85,7 +85,7 @@ export const DEFAULT_METRIC_RULES = {
   debt_to_equity: {
     label: 'Debt / Equity',
     getValue: (kpis) => toNumber(kpis.debt_to_equity),
-    formatValue: (value) => formatNumber(value, 1),
+    formatValue: formatPercent, // Yahoo donne debtToEquity en % (22,19 = 22,19 %)
     getStatus: (value) => inverseStatus(value, 50, 150),
     getPosition: (value) => (value == null ? null : clamp(value / 250)),
   },
@@ -99,7 +99,7 @@ export const DEFAULT_METRIC_RULES = {
   eps: {
     label: 'EPS',
     getValue: (kpis) => toNumber(kpis.eps),
-    formatValue: formatCurrency,
+    formatValue: (value, symbole) => formatCurrency(value, symbole),
     getStatus: epsStatus,
     getPosition: (value) => (value == null ? null : clamp((value + 10) / 20)),
   },
@@ -112,15 +112,15 @@ export const DEFAULT_METRIC_RULES = {
   },
 };
 
-export const buildPerformanceLedgerRows = (kpis, metricRules = DEFAULT_METRIC_RULES) => {
-  const rows = [buildRange52wRow(kpis)];
+export const buildPerformanceLedgerRows = (kpis, metricRules = DEFAULT_METRIC_RULES, symbole = '$') => {
+  const rows = [buildRange52wRow(kpis, symbole)];
 
   Object.values(metricRules).forEach((rule) => {
     const value = rule.getValue(kpis);
     rows.push({
       key: rule.label.toLowerCase().replace(/\s+/g, '_'),
       label: rule.label,
-      value: rule.formatValue(value),
+      value: rule.formatValue(value, symbole),
       position: rule.getPosition ? rule.getPosition(value, kpis) : null,
       status: rule.getStatus(value, kpis),
     });

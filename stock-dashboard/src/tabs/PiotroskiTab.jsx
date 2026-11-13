@@ -28,9 +28,9 @@ const PiotroskiTab = ({ piotroski_score }) => {
   const pioColors = getPiotroskiColor(piotroski_score.total_score, piotroski_score.inconnus);
 
   const categories = [
-    { title: 'Rentabilité',               color: '#3b82f6', items: piotroski_score.profitability, delay: 0.1  },
-    { title: 'Levier / Liquidité',        color: '#8b5cf6', items: piotroski_score.leverage,      delay: 0.15 },
-    { title: 'Efficacité Opérationnelle', color: '#22c55e', items: piotroski_score.operating,     delay: 0.2  },
+    { title: 'Rentabilité',               color: '#4C8DFF', items: piotroski_score.profitability, delay: 0.1  },
+    { title: 'Levier / Liquidité',        color: '#A78BFA', items: piotroski_score.leverage,      delay: 0.15 },
+    { title: 'Efficacité Opérationnelle', color: '#22D468', items: piotroski_score.operating,     delay: 0.2  },
   ];
 
   return (

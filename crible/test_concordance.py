@@ -1,6 +1,6 @@
 """
 Concordance du profil défensif entre Python (screener_qualite.evaluer) et le
-site (moteur_site.js, exécuté avec Node). Cas aléatoires, autour des seuils,
+site (stock-dashboard/src/crible/moteur.js, exécuté avec Node). Cas aléatoires, autour des seuils,
 avec des inconnues et des plages [min, max].
 Lancer : python test_concordance.py [nombre_de_cas]
 Ignoré (sans échec) si Node n'est pas installé.
@@ -19,9 +19,13 @@ sys.path.insert(0, ICI)
 
 import screener_qualite as sq  # noqa: E402
 
+MOTEUR = os.path.join(os.path.dirname(ICI), "stock-dashboard", "src", "crible", "moteur.js")
+
 NOEUD = r"""
-const M = require(process.argv[2]);
-const cas = JSON.parse(require("fs").readFileSync(process.argv[3], "utf8"));
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const M = (await import(pathToFileURL(process.argv[2]).href)).default;
+const cas = JSON.parse(readFileSync(process.argv[3], "utf8"));
 const sortie = cas.map((c) => {
   const r = M.evaluer(c.x, c.s);
   const st = {};
@@ -111,10 +115,10 @@ def comparer(n=3000):
         entree = os.path.join(d, "cas.json")
         with open(entree, "w", encoding="utf-8") as f:
             json.dump(cas, f)
-        script = os.path.join(d, "comparer.js")
+        script = os.path.join(d, "comparer.mjs")
         with open(script, "w", encoding="utf-8") as f:
             f.write(NOEUD)
-        res = subprocess.run([noeud, script, os.path.join(ICI, "moteur_site.js"), entree],
+        res = subprocess.run([noeud, "--no-warnings", script, MOTEUR, entree],
                              capture_output=True, text=True, check=True)
     js = json.loads(res.stdout)
     ecarts = []

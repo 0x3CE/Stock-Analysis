@@ -153,7 +153,7 @@ CHAMPS_NUM = [
     "croissance_bpa_0y_pct", "croissance_bpa_1y_pct", "ca", "dividendes_verses", "tcac_ca_pct", "div_annees",
     "div_baisses", "croissance_div_pct", "capex_pct_ca", "marge_op_pct", "marge_brute_ecart_type",
     "marge_brute_nb_annees", "fcf", "retours", "dette_nette", "dette_nette_prec", "ebitda", "croissance_pct",
-    "beta", "volume_moyen", "echanges_jour_usd",
+    "beta", "volume_moyen", "echanges_jour_usd", "taux_usd_devise", "taux_usd_comptable",
 ]
 CHAMPS_VERDICT = ["verdict_defensif"]
 CHAMPS = CHAMPS_TEXTE + CHAMPS_BOOL + CHAMPS_NUM + CHAMPS_VERDICT
@@ -527,9 +527,14 @@ def ajouter_capi_usd(lignes, taux):
     capi_usd : capitalisation en USD. Pour un cours en centièmes (GBp), la
     capitalisation de Yahoo est déjà dans l'unité principale (GBP).
     echanges_jour_usd : volume moyen × cours, en USD (mesure de liquidité).
+    taux_usd_devise, taux_usd_comptable : valeur en USD d'une unité de la devise
+    de cotation et de la devise des comptes, pour que le site convertisse tout
+    montant dans la devise choisie (EUR, USD, CHF, JPY, GBP).
     """
     for l in lignes:
         devise = l.get("devise")
+        l["taux_usd_devise"] = taux.get(devise)
+        l["taux_usd_comptable"] = taux.get(l.get("devise_comptable"))
         capi, t_capi = l.get("capi"), taux.get(DEVISE_CAPI.get(devise, devise))
         l["capi_usd"] = capi * t_capi if capi is not None and t_capi is not None else None
         vol, cours, t = l.get("volume_moyen"), l.get("cours"), taux.get(devise)
@@ -850,7 +855,8 @@ def main(argv=None):
     for l in lignes:
         if l.get("statut") == "OK" and not l.get("region"):
             l["region"] = region_depuis_pays(l.get("pays"))
-    taux = taux_usd([l.get("devise") for l in lignes if l.get("statut") == "OK"] + DEVISES_SITE)
+    taux = taux_usd([l.get(c) for l in lignes if l.get("statut") == "OK" for c in ("devise", "devise_comptable")]
+                    + DEVISES_SITE)
     ajouter_capi_usd(lignes, taux)
     retires = [{"ticker": tk, "motif": m} for tk, m in ecartes]
     retires += [{"ticker": l["ticker"], "motif": l.get("motif")} for l in lignes if l.get("statut") == "RETIRE"]
@@ -874,6 +880,7 @@ def main(argv=None):
         "doublons_retires": n_dbl,
         "retires": retires,
         "taux_usd": {d: taux.get(d) for d in DEVISES_SITE},
+        "taux_usd_tous": taux,
         "duree_s": round(time.time() - debut),
     }
     chemins = exporter(lignes, meta, a.sortie)

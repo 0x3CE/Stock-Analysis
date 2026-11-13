@@ -13,7 +13,7 @@ Version du 13/11/2026. Ce fichier ne contient aucune donnée personnelle (voir �
 3. **Sources divergentes : montrer les deux.** Exemple : un PER de 9,5 chez une source et de 13,6 chez une autre donne la fourchette 9,5 – 13,6. Ne choisis pas entre elles.
 4. **Contredire avec des contre-exemples.** Quand l'utilisateur affirme quelque chose de faux ou de partiellement faux, dis-le et donne un contre-exemple concret.
 5. **L'utilisateur décide.** Claude rassemble les chiffres et explique le pourquoi. La décision d'achat ou de vente revient à l'utilisateur. Le site montre des verdicts critère par critère, jamais un conseil d'achat. Ne présente jamais un choix comme une certitude.
-6. **Nestlé est exclue à vie.** Les cotations NESN.SW, NSRGY et NSRGF, et tout nom contenant « Nestlé ». Ne retire jamais cette exclusion : `EXCLUSIONS` et `_exclusion()` dans `crible/screener_qualite.py`, `EXCLUSIONS` et `exclusion()` dans le moteur JavaScript.
+6. **Nestlé est exclue à vie.** Les cotations NESN.SW, NSRGY et NSRGF, et tout nom contenant « Nestlé ». Ne retire jamais cette exclusion : `EXCLUSIONS` et `_exclusion()` dans `crible/screener_qualite.py`, `EXCLUSIONS` et `exclusion()` dans `stock-dashboard/src/crible/moteur.js`.
 7. **Aucun seuil ne change en silence.** Toute modification de critère, de seuil ou de règle de calcul est annoncée à l'utilisateur, avec l'ancienne et la nouvelle valeur.
 
 ## Feuille de route
@@ -21,7 +21,7 @@ Version du 13/11/2026. Ce fichier ne contient aucune donnée personnelle (voir �
 | Étape | Contenu | État |
 |---|---|---|
 | 1 | Scripts du crible dans `crible/`. Backend sans 0 par défaut, Piotroski à trois valeurs. | Fait (13/11/2026) : 1 351 sociétés au premier passage complet. |
-| 2 | Le crible dans le site : onglet, profils défensif, offensif, rendement et valeur, filtres, fiche société enrichie. Choix de la devise : EUR, USD, CHF, JPY, GBP. | À faire |
+| 2 | Le crible dans le site : vue « Crible des marchés », profils défensif, offensif, rendement et valeur, filtres, fiche société, choix de la devise (EUR, USD, CHF, JPY, GBP). | Première version (13/11/2026). Reste : seuils modifiables, grille « Vérifié à la main », hébergement des données (R2). |
 | 3 | 5e profil « Résilience » : baisse maximale et temps de retour au plus haut pendant 2000-2002, 2008-2009, mars 2020 et 2022, comparés à l'indice ; dividende maintenu ou coupé. Repères : or, obligations, S&P 500. Contexte macro avec FRED et la Banque mondiale. | À faire |
 | 4 | Comptes (Supabase) et portefeuille : actions, ETF et or. Répartition par secteur, pays et devise, concentration, comportement dans les krachs passés. | À faire |
 | 5 | Agent branché sur la clé d'API Claude ou GPT de l'utilisateur. Passage sur un VPS (DuckDB), fin du cold start de Render. | Plus tard |
@@ -63,8 +63,10 @@ python3 screener_qualite.py --univers univers.csv   # filtre défensif seul, CSV
 **Backend**
 
 ```bash
-cd backend && uvicorn main:app --reload --port 8000
+cd backend && python3 -m uvicorn main:app --reload --port 8000
 ```
+
+Le port 8000 est souvent pris par le backend d'un autre projet (`~/Developer/pdf-editor/backend`, Glyph). Le site interroge alors ce backend et reçoit « Not Found », même sur `/health`. Dans ce cas, lancer Stock_analysis sur le port 8001, puis le front avec `VITE_API_URL=http://localhost:8001 npm start`.
 
 Tests du backend : pytest parcourt `backend/` et rencontre `backend/.env`, que le bac à sable bloque. Claude copie `core models routes services tests main.py pytest.ini __init__.py` dans `$TMPDIR` et lance `python3 -m pytest tests -q -p no:cacheprovider` là-bas. `test_valid_query_returns_results_structure` appelle Yahoo : il échoue sans réseau. Le `venv/` du dépôt n'a ni pytest ni yfinance ; le Python 3.12 du système les a.
 
@@ -85,9 +87,8 @@ Sans vitest, Claude vérifie que le front compile avec `./node_modules/.bin/vite
 |---|---|
 | `screener_qualite.py` | Profil défensif : seuils `CRITERES`, `completer_etats()`, `mesures()`, `evaluer()`, `verdict()`, exclusions. Peut servir seul (`--univers univers.csv`). |
 | `crible_marches.py` | Univers, extraction de tous les chiffres, cache, reprises, dédoublonnage, export. |
-| `moteur_site.js` | Copie du moteur JavaScript de la page claude.ai (version du 12/11/2026) : profils défensif, offensif, rendement et valeur. Référence pour l'étape 2. |
 | `test_screener.py`, `test_crible.py` | Tests hors ligne, avec de fausses sociétés (`FauxTicker`). Aucun appel réseau. Plusieurs tests reprennent des cas réels des essais du 13/11/2026. |
-| `test_concordance.py` | Compare `evaluer()` et `moteur_site.js` (avec Node) sur des milliers de cas aléatoires. 0 écart sur 20 000 cas le 13/11/2026. |
+| `test_concordance.py` | Compare `evaluer()` et le moteur du site `stock-dashboard/src/crible/moteur.js` (avec Node) sur des milliers de cas aléatoires. 0 écart sur 20 000 cas le 13/11/2026, et 0 écart sur les 1 352 sociétés réelles. |
 | `univers.csv` | Petite liste de départ pour `screener_qualite.py` (colonne `ticker`). |
 | `sp500_constituents.csv` | Copie locale du S&P 500 (ticker, nom), réécrite à chaque lecture réussie de Wikipédia. |
 | `extra_local.txt` | Tickers ajoutés à l'univers, un par ligne. **Non versionné** (positions détenues). Modèle : `extra_local.exemple.txt`. |
@@ -100,7 +101,7 @@ Sorties, non versionnées (déjà dans `.gitignore`) : `crible_resultats.json`, 
 - `mesures(m)` produit les chiffres bruts exportés. `evaluer(x)` applique les 7 critères.
 - Logique à trois valeurs : un échec avéré l'emporte, sinon une seule inconnue donne `INCONNU`. Verdict : `RETENU`, `À VÉRIFIER` ou `EXCLU`. Une valeur peut être une plage `[min, max]` (sources divergentes, règle 3).
 - Une ligne rachats ou dividendes absente des états compte pour 0, et une note le dit. C'est la seule exception à la règle 2. Une case vide dans une ligne présente reste inconnue.
-- `evaluer()` est la copie exacte du moteur JavaScript. Toute modification de l'un se reporte sur l'autre, et `test_concordance.py` doit rester à 0 écart.
+- `evaluer()` est la copie exacte du moteur du site (`stock-dashboard/src/crible/moteur.js`, repris de la page claude.ai du 12/11/2026). Toute modification de l'un se reporte sur l'autre, et `test_concordance.py` doit rester à 0 écart.
 
 ### Extraction de l'univers (`crible_marches.py`)
 
@@ -126,13 +127,14 @@ Sorties, non versionnées (déjà dans `.gitignore`) : `crible_resultats.json`, 
 
 ### Format de sortie
 
-- `crible_resultats.json` vaut `{"meta": {...}, "lignes": [...]}`. Ne renomme ni ne supprime aucun champ existant ; en ajouter un est sans risque. La liste est `CHAMPS` dans `crible_marches.py`, et un test vérifie que chaque champ lu par le moteur JavaScript y figure.
+- `crible_resultats.json` vaut `{"meta": {...}, "lignes": [...]}`. Ne renomme ni ne supprime aucun champ existant ; en ajouter un est sans risque. La liste est `CHAMPS` dans `crible_marches.py`, et un test vérifie que chaque champ lu par `moteur.js` y figure.
 - `crible_resultats.parquet` porte le même contenu, avec des types fixes (texte, booléen nullable, `Float64`), pour DuckDB.
 - `meta` : date d'extraction, statuts, sociétés par région, titres retirés avec leur motif, doublons, `taux_usd` (valeur en USD d'une unité d'EUR, USD, CHF, JPY et GBP).
 - `statut` vaut `OK`, `ERREUR` ou `EXCLU`, avec un `motif` pour les deux derniers. `verdict_defensif` est le verdict du script, avec les seuils `CRITERES` du moment.
 - Les champs `*_pct` sont déjà en pourcentage (12,5 veut dire 12,5 %). Les montants (`fcf_ttm`, `dette_nette_ttm`, `ebitda_ttm`, etc.) sont dans `devise_comptable`, et `cours` dans `devise`. `capi` aussi, sauf avec `GBp` : la capitalisation est alors en GBP.
 - `devise` et `devise_comptable` diffèrent pour 74 sociétés au 13/11/2026 (TotalEnergies, Shell et HSBC publient en USD, Unilever en EUR). `rendement_fcf_pct` n'est calculé que si les deux sont égales.
 - `capi_usd` sert à comparer les tailles. `volume_moyen` vient de `averageVolume`. `echanges_jour_usd` vaut volume moyen × cours, en USD (mon calcul).
+- `taux_usd_devise` et `taux_usd_comptable` : valeur en USD d'une unité de la devise de cotation et de la devise des comptes. Le site s'en sert pour convertir les montants dans la devise choisie ; sans taux, il affiche « — ». `meta.taux_usd_tous` donne tous les taux de l'extraction.
 - `levier_ttm` = (dette totale − trésorerie) / EBITDA sur 12 mois, `None` si l'EBITDA est négatif ou nul. `tresorerie_nette` vaut vrai si la dette nette est inférieure ou égale à 0.
 - `croissance_ca_0y_pct` et `croissance_ca_1y_pct` sont les prévisions du consensus pour l'exercice en cours et le suivant (même logique pour `bpa`). `*_trim_pct` compare le dernier trimestre à celui de l'année précédente.
 - `rendement_div_pct` vient de `trailingAnnualDividendYield` (12 derniers mois). `div_annees`, `div_baisses` et `croissance_div_pct` portent sur les années civiles complètes.
@@ -165,18 +167,38 @@ Après chaque passage complet :
   - `/api/search/{query}` : 30 requêtes/min.
   - `/api/buffett-indicator` : Banque mondiale, cache 1 h.
   - `/api/market-snapshot` : cache 60 s.
+  - `/api/cotations?tickers=A,B` : cours, variation du jour et devise, 12 tickers au plus, cache de 60 s (watchlist). Une valeur introuvable vaut `null`.
+  - `/api/crible` (30 requêtes/min) et `/api/crible/{ticker}` : résultats du crible, sociétés au statut `OK` seulement. Réponse compressée (environ 0,5 Mo).
   - `/health`.
 - **`services/stock_service.py` :** `_safe_float()` renvoie `None` pour une valeur absente, NaN ou infinie, jamais 0. Les KPIs introuvables valent `null`, et le site affiche « — ».
 - **Piotroski à trois valeurs :** chaque critère a `score` 1, 0 ou `null` et `statut` `OK`, `ÉCHEC` ou `INCONNU`. `total_score` compte les 1 ; `inconnus` compte les critères sans données. Le score réel est donc compris entre `total_score` et `total_score + inconnus`.
   - `interpret_piotroski()` ne conclut que si toute la fourchette tombe dans une seule zone : 7 et plus, 4 à 6, moins de 4.
   - Seuls les états annuels servent : pas de repli sur les chiffres des 12 derniers mois de `stock.info`. Ces replis ont été retirés le 13/11/2026, car ils mélangeaient deux périodes ou reconstituaient un nombre d'actions.
 - Seuils Piotroski : `PIOTROSKI_HIGH_THRESHOLD = 7`, `PIOTROSKI_MID_THRESHOLD = 4`, identiques dans `stock-dashboard/src/utils/Formatters.js`.
-- Configuration : `ALLOWED_ORIGINS` (CORS) dans `backend/.env`.
+- **`services/crible_service.py` :** lit `crible_resultats.parquet` avec DuckDB, et `meta` dans `crible_resultats.json`. Repli sur le JSON si DuckDB ou le Parquet manquent. Données gardées en mémoire, relues quand un fichier change ; 503 si aucun fichier. Dossier : `CRIBLE_DOSSIER` (par défaut `crible/` du dépôt ; plus tard R2).
+- Configuration : `ALLOWED_ORIGINS` (CORS) dans `backend/.env`. `duckdb==2.0.0` est dans `requirements.txt`.
 
 ## Front (`stock-dashboard/`)
 
 - React 18, Vite 5, Recharts, CSS modules avec des jetons de design dans `src/styles/tokens.css`.
-- Onglets : Vue d'ensemble, Financiers, Piotroski, Buffett, Comparer.
+- **Design « terminal »**, d'après la capture d'écran de l'utilisateur (13/11/2026) :
+  - fond marine sombre avec un quadrillage discret, et vert néon `--accent` (#22D468) ;
+  - aspect pixel art voulu : titres, logo et nom de la société en Pixelify Sans (`--font-display`). Le cours et sa variation sont en Press Start 2P (`--font-pixel-chiffres`), une police pixel « façon Minecraft » aux chiffres nets ; jamais de chiffres en Pixelify Sans, où les 9 se lisaient comme des S (13/11/2026). Les autres chiffres sont en JetBrains Mono (`--font-mono`). Le texte courant est en Inter. Les trois viennent de Google Fonts, autorisé dans la CSP de `render.yaml` ;
+  - badges à contour : vert pour le secteur, bleu pour la bourse et la devise.
+
+  Recharts écrit ses couleurs dans des attributs SVG : elles sont en dur dans les composants de graphique, alignées sur les jetons.
+- **Carte de thèse :** le prix cible est l'objectif moyen des analystes (`kpis.target_mean_price`, avec `analyst_count`), toujours affiché avec sa source. La conviction et l'hypothèse sont écrites par l'utilisateur (`useTheses`, gardées dans le navigateur). Jamais de valeur par défaut inventée : avant le 13/11/2026, le prix cible valait cours × 1,12 et la conviction « Moyenne » en dur.
+- **Watchlist :** les favoris de l'utilisateur (étoile), avec leurs cours via `/api/cotations`. Les anciennes lignes MSFT, ASML et MC.PA, écrites en dur avec de faux cours, ont été supprimées.
+- **Executive Summary :** des constats chiffrés (marge, ROE, D/E, P/E, dividende), sans formule de conseil.
+- `useLocalState` : état gardé dans le navigateur sans planter (navigation privée). Il sert à la devise, aux favoris et aux thèses, en attendant Supabase.
+- Deux vues dans l'en-tête : « Analyse » (une société : Vue d'ensemble, Financiers, Piotroski, Buffett, Comparer) et « Crible des marchés » (adresse `#crible`).
+- `src/crible/` :
+  - `moteur.js` : moteur des quatre profils, module ES, source unique côté site ;
+  - `CribleView.jsx` : liste filtrable, triable et paginée, et fiche d'une société avec les critères de chaque profil ;
+  - `devises.js` : conversions (`devises.test.js`) ;
+  - `libelles.js` : secteurs, pays et seuils en français.
+
+  La devise choisie est gardée dans le navigateur (`localStorage`). « Analyse complète » ouvre la vue Analyse de la société.
 - `getPiotroskiColor(score, inconnus)` applique la même règle que `interpret_piotroski()`. Un score `null` ou une fourchette à cheval sur deux zones donne « À VÉRIFIER », jamais « FAIBLE ».
 - Configuration : `VITE_API_URL` dans `stock-dashboard/.env`.
 - Déploiement : site statique et API sur Render (`render.yaml`).

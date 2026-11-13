@@ -41,27 +41,27 @@ const FinancialsTab = ({ profit_margin_history, dividend_history, chartHeight })
             <AreaChart data={profitSorted}>
               <defs>
                 <linearGradient id="marginGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  <stop offset="5%"  stopColor="#22D468" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#22D468" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1a2332" />
-              <XAxis dataKey="year" stroke="#334155"
-                tick={{ fontSize: 11, fill: '#475569', fontFamily: 'DM Mono, monospace' }} />
-              <YAxis stroke="#334155"
-                tick={{ fontSize: 11, fill: '#475569', fontFamily: 'DM Mono, monospace' }}
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2B3A" />
+              <XAxis dataKey="year" stroke="#263445"
+                tick={{ fontSize: 11, fill: '#C9D3DE', fontFamily: 'JetBrains Mono, ui-monospace, monospace' }} />
+              <YAxis stroke="#263445"
+                tick={{ fontSize: 11, fill: '#C9D3DE', fontFamily: 'JetBrains Mono, ui-monospace, monospace' }}
                 tickFormatter={(v) => `${v}%`} />
-              <ReferenceLine y={20} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.35}
-                label={{ value: 'Seuil 20%', fill: '#22c55e', fontSize: 10, fontFamily: 'DM Mono, monospace' }} />
+              <ReferenceLine y={20} stroke="#22D468" strokeDasharray="4 4" strokeOpacity={0.35}
+                label={{ value: 'Seuil 20%', fill: '#22D468', fontSize: 10, fontFamily: 'JetBrains Mono, ui-monospace, monospace' }} />
               <Tooltip
-                contentStyle={{ background: '#0d1117', border: '1px solid #21262d', borderRadius: '10px', fontFamily: 'DM Sans, sans-serif' }}
-                labelStyle={{ color: '#8b949e', fontSize: '12px' }}
+                contentStyle={{ background: '#121C29', border: '1px solid #263445', borderRadius: '10px', fontFamily: 'JetBrains Mono, ui-monospace, monospace' }}
+                labelStyle={{ color: '#93A1B2', fontSize: '12px' }}
                 formatter={(v) => [`${v}%`, 'Marge nette']}
               />
-              <Area type="monotone" dataKey="margin" stroke="#22c55e" strokeWidth={2}
+              <Area type="monotone" dataKey="margin" stroke="#22D468" strokeWidth={2}
                 fill="url(#marginGrad)"
-                dot={{ r: 3, fill: '#22c55e', strokeWidth: 0 }}
-                activeDot={{ r: 5, fill: '#22c55e', stroke: '#0d1117', strokeWidth: 2 }}
+                dot={{ r: 3, fill: '#22D468', strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: '#22D468', stroke: '#0A1019', strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>

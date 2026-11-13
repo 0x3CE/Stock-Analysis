@@ -20,7 +20,7 @@ const BuffettGauge = ({ ratio, color }) => {
     <div className={styles.gaugeWrap}>
       <svg width="100%" viewBox="0 0 200 120">
         <path d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
-          fill="none" stroke="#1e293b" strokeWidth={12} strokeLinecap="round" />
+          fill="none" stroke="#263445" strokeWidth={12} strokeLinecap="round" />
         <path d={`M ${cx - radius},${cy} A ${radius},${radius} 0 0,1 ${cx + radius},${cy}`}
           fill="none" stroke={color} strokeWidth={12} strokeLinecap="round"
           strokeDasharray={`${progress} ${circumference}`}
@@ -31,13 +31,13 @@ const BuffettGauge = ({ ratio, color }) => {
             <circle key={t}
               cx={cx - radius * Math.cos(angle)}
               cy={cy - radius * Math.sin(angle)}
-              r={3} fill="#334155" stroke="#475569" strokeWidth={1} />
+              r={3} fill="#3A4B60" stroke="#93A1B2" strokeWidth={1} />
           );
         })}
         <text x={cx} y={cy - 12} textAnchor="middle" fill={color}
-          fontSize="30" fontWeight="800" fontFamily="Syne, sans-serif">{ratio}%</text>
+          fontSize="30" fontWeight="800" fontFamily="JetBrains Mono, ui-monospace, monospace">{ratio}%</text>
         <text x={cx} y={cy + 10} textAnchor="middle" fill="#475569"
-          fontSize="11" fontFamily="DM Mono, monospace">MktCap / GDP</text>
+          fontSize="11" fontFamily="JetBrains Mono, ui-monospace, monospace">MktCap / GDP</text>
       </svg>
     </div>
   );
@@ -85,8 +85,8 @@ const CountryCard = ({ data, isSelected, onClick }) => {
       onClick={onClick}
       className={styles.countryCard}
       style={{
-        background:  isSelected ? `${data.color}12` : '#111827',
-        border:      `1px solid ${isSelected ? `${data.color}50` : '#1e293b'}`,
+        background:  isSelected ? `${data.color}12` : '#0E1621',
+        border:      `1px solid ${isSelected ? `${data.color}50` : '#263445'}`,
         boxShadow:   isSelected ? `0 0 24px ${data.color}20` : 'none',
       }}
     >

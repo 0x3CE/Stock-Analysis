@@ -203,6 +203,11 @@ class StockDataService:
             "debt_to_equity": r(d_e_raw),
             "current_ratio":  r(cr_raw),
             "profit_margin":  r(pm_raw * 100) if pm_raw is not None else None,
+            # Consensus des analystes (Yahoo) : sert de « prix cible » dans la carte de thèse,
+            # toujours affiché avec sa source et le nombre d'analystes.
+            "target_mean_price": r(get("targetMeanPrice")),
+            "analyst_count":     int(get("numberOfAnalystOpinions")) if get("numberOfAnalystOpinions") is not None else None,
+            "recommendation":    (info.get("recommendationKey") or None) if info else None,
         }
 
     # ------------------------------------------------------------------

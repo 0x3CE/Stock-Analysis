@@ -231,3 +231,20 @@ class TestProfitMarginHistory:
         stock.financials = pd.DataFrame()
         result = StockDataService.get_profit_and_margin_history(stock)
         assert result == []
+
+
+class TestConsensusAnalystes:
+    def test_objectif_moyen_et_nombre(self):
+        stock = MagicMock()
+        stock.info = {"currentPrice": 304.75, "targetMeanPrice": 341.0, "numberOfAnalystOpinions": 55,
+                      "recommendationKey": "buy", "returnOnEquity": 0.44}
+        stock.fast_info = {}
+        k = StockDataService.extract_kpis(stock)
+        assert (k["target_mean_price"], k["analyst_count"], k["recommendation"]) == (341.0, 55, "buy")
+
+    def test_sans_consensus_tout_reste_none(self):
+        stock = MagicMock()
+        stock.info = {"currentPrice": 10.0, "returnOnEquity": 0.1}
+        stock.fast_info = {}
+        k = StockDataService.extract_kpis(stock)
+        assert k["target_mean_price"] is None and k["analyst_count"] is None and k["recommendation"] is None

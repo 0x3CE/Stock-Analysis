@@ -26,7 +26,7 @@ services:
         value: camera=(), microphone=(), geolocation=()
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.onrender.com; font-src 'self'; object-src 'none'; base-uri 'self'"
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' https://*.onrender.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'"
 
   - type: web
     name: stock-analysis-api
